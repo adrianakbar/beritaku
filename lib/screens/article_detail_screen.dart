@@ -27,6 +27,8 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
   bool _isBookmarked = false;
   bool _isGeneratingAi = false;
   double _fontSize = 14.0;
+  String _titleFont = 'Playfair Display';
+  String _bodyFont = 'Lora';
 
   @override
   void initState() {
@@ -49,10 +51,15 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
   Future<void> _checkBookmarkStatus() async {
     await _storage.init();
     final saved = await _storage.getSavedArticle(_article.id);
-    if (saved != null && mounted) {
+    _titleFont = _storage.getSelectedTitleFont();
+    _bodyFont = _storage.getSelectedBodyFont();
+    
+    if (mounted) {
       setState(() {
-        _isBookmarked = true;
-        _article = saved;
+        if (saved != null) {
+          _isBookmarked = true;
+          _article = saved;
+        }
       });
     }
   }
@@ -225,11 +232,12 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
                   // Title
                   Text(
                     _article.title,
-                    style: GoogleFonts.poppins(
+                    style: GoogleFonts.getFont(
+                      _titleFont,
                       color: const Color(0xFF0F172A),
-                      fontSize: 20,
+                      fontSize: 22, // Slightly larger for dynamic editorial presence
                       fontWeight: FontWeight.w900,
-                      height: 1.4,
+                      height: 1.35,
                       letterSpacing: 0.1,
                     ),
                   ),
@@ -260,10 +268,11 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
                   // Article Content
                   Text(
                     _article.content,
-                    style: GoogleFonts.inter(
-                      color: const Color(0xFF1E293B), // Premium contrast dark slate
+                    style: GoogleFonts.getFont(
+                      _bodyFont,
+                      color: const Color(0xFF1E293B), // Premium high contrast dark slate reading color
                       fontSize: _fontSize,
-                      height: 1.7,
+                      height: 1.75, // Generous line spacing for comfortable reading
                       letterSpacing: 0.1,
                     ),
                   ),

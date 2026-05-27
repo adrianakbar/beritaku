@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../services/storage_service.dart';
 import '../services/gemini_service.dart';
 import '../services/backup_service.dart';
@@ -57,6 +58,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
   int _reminderMinute = 0;
   String _userName = 'Adrian Akbar';
 
+  // Typography Options
+  final List<String> _titleFonts = [
+    'Playfair Display',
+    'Merriweather',
+    'Cinzel',
+    'EB Garamond',
+    'DM Serif Display',
+    'Poppins',
+    'Montserrat',
+  ];
+
+  final List<String> _bodyFonts = [
+    'Lora',
+    'PT Serif',
+    'Crimson Pro',
+    'Inter',
+    'Roboto',
+    'Open Sans',
+  ];
+
+  String _selectedTitleFont = 'Playfair Display';
+  String _selectedBodyFont = 'Lora';
+
   @override
   void initState() {
     super.initState();
@@ -80,6 +104,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _reminderEnabled = await _notifications.isReminderEnabled();
     _reminderHour = await _notifications.getReminderHour();
     _reminderMinute = await _notifications.getReminderMinute();
+
+    // Load typography
+    _selectedTitleFont = _storage.getSelectedTitleFont();
+    _selectedBodyFont = _storage.getSelectedBodyFont();
 
     if (mounted) setState(() {});
   }
@@ -335,28 +363,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Halo, $_userName 👋',
-                      style: const TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF0F172A),
-                        letterSpacing: 0.5,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Halo,',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.black54,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Sesuaikan proteksi keamanan dan setelan Anda',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.black54,
-                        fontWeight: FontWeight.w500,
+                      const SizedBox(height: 2),
+                      Text(
+                        '$_userName 👋',
+                        style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF0F172A),
+                          letterSpacing: 0.5,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Sesuaikan proteksi keamanan dan setelan Anda',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -792,6 +835,92 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 24),
 
+          // 4b. Typography & Fonts Section
+          _buildSectionHeader('Gaya Tipografi & Font', Icons.text_fields_rounded, Colors.deepOrangeAccent),
+          GlassContainer(
+            opacity: 0.22,
+            borderRadius: 24,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Pilih Font Judul Berita',
+                  style: TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                _buildFontDropdown(
+                  value: _selectedTitleFont,
+                  items: _titleFonts,
+                  onChanged: (val) async {
+                    if (val != null) {
+                      await _storage.setSelectedTitleFont(val);
+                      setState(() => _selectedTitleFont = val);
+                      _showSnackBar('Font Judul diubah menjadi: $val', Colors.deepOrangeAccent);
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Pilih Font Isi Berita (Detail)',
+                  style: TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                _buildFontDropdown(
+                  value: _selectedBodyFont,
+                  items: _bodyFonts,
+                  onChanged: (val) async {
+                    if (val != null) {
+                      await _storage.setSelectedBodyFont(val);
+                      setState(() => _selectedBodyFont = val);
+                      _showSnackBar('Font Isi Berita diubah menjadi: $val', Colors.deepOrangeAccent);
+                    }
+                  },
+                ),
+                const SizedBox(height: 14),
+                // Beautiful Preview box
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.02),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.black.withOpacity(0.04)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'PREVIEW EDITORIAL',
+                        style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, color: Colors.black38, letterSpacing: 0.5),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Judul Sampel Beritaku',
+                        style: GoogleFonts.getFont(
+                          _selectedTitleFont,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF0F172A),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Ini adalah contoh paragraf yang memvisualisasikan keterbacaan teks utama artikel dengan font yang Anda pilih.',
+                        style: GoogleFonts.getFont(
+                          _selectedBodyFont,
+                          fontSize: 11,
+                          color: Colors.black87,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
           // 5. Supabase Self Hosted Backup
           _buildSectionHeader('Cloud Backup (Supabase)', Icons.cloud_done_rounded, Colors.cyan),
           GlassContainer(
@@ -920,40 +1049,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 24),
 
-          // 6. Logout Card Option
-          _buildSectionHeader('Autentikasi Akun', Icons.login_rounded, Colors.redAccent),
+          // 6. Logout & Profil Card Option
+          _buildSectionHeader('Profil & Autentikasi', Icons.person_rounded, Colors.redAccent),
           GlassContainer(
             opacity: 0.22,
             borderRadius: 24,
-            glassColor: Colors.redAccent.withOpacity(0.03),
-            customBorder: Border.all(color: Colors.redAccent.withOpacity(0.2), width: 1.0),
+            glassColor: Colors.redAccent.withOpacity(0.02),
+            customBorder: Border.all(color: Colors.redAccent.withOpacity(0.25), width: 1.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Keluar dari Sesi Aplikasi',
+                  'Kelola Informasi Profil',
                   style: TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 4),
-                const Text(
-                  'Mengakhiri login aktif Anda dan kembali ke portal pengaman biometrik.',
-                  style: TextStyle(color: Colors.black45, fontSize: 10),
+                Text(
+                  'Nama Anda saat ini: $_userName',
+                  style: const TextStyle(color: Colors.black54, fontSize: 10),
                 ),
                 const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  height: 44,
-                  child: ElevatedButton.icon(
-                    onPressed: _handleLogout,
-                    icon: const Icon(Icons.exit_to_app_rounded, size: 18, color: Colors.white),
-                    label: const Text('LOGOUT AKUN', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.redAccent.shade700,
-                      foregroundColor: Colors.white,
-                      elevation: 2,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _showEditNameDialog,
+                        icon: const Icon(Icons.edit_rounded, size: 14, color: Color(0xFF6366F1)),
+                        label: const Text('Ubah Nama', style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 11)),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: const Color(0xFF6366F1).withOpacity(0.35)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _handleLogout,
+                        icon: const Icon(Icons.exit_to_app_rounded, size: 14, color: Colors.white),
+                        label: const Text('LOGOUT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.redAccent.shade700,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -1132,6 +1276,113 @@ class _SettingsScreenState extends State<SettingsScreen> {
         width: 1,
       ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    );
+  }
+
+  Widget _buildFontDropdown({
+    required String value,
+    required List<String> items,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          isExpanded: true,
+          dropdownColor: const Color(0xFFFAFBFD),
+          icon: const Icon(Icons.arrow_drop_down_rounded, color: Colors.black45),
+          style: const TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.bold),
+          onChanged: onChanged,
+          items: items.map((font) {
+            return DropdownMenuItem<String>(
+              value: font,
+              child: Text(
+                font,
+                style: GoogleFonts.getFont(font),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  void _showEditNameDialog() {
+    final TextEditingController nameEditController = TextEditingController(text: _userName);
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFFF5F6FA),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Row(
+            children: const [
+              Icon(Icons.badge_rounded, color: Color(0xFF6366F1), size: 22),
+              SizedBox(width: 8),
+              Text('Ubah Nama Lengkap', style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 16)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Masukkan nama lengkap baru Anda:',
+                style: TextStyle(color: Colors.black54, fontSize: 12),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: nameEditController,
+                style: const TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.bold),
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: Colors.black.withOpacity(0.04),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  prefixIcon: const Icon(Icons.person_outline_rounded, color: Colors.black45, size: 18),
+                ),
+                autofocus: true,
+              ),
+            ],
+          ),
+          actionsPadding: const EdgeInsets.only(bottom: 16, right: 16, left: 16),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Batal', style: TextStyle(color: Colors.black54, fontWeight: FontWeight.bold)),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final newName = nameEditController.text.trim();
+                if (newName.isNotEmpty) {
+                  await _auth.updateUserName(newName);
+                  if (context.mounted) {
+                    setState(() {
+                      _userName = newName;
+                    });
+                    Navigator.pop(context);
+                    _showSnackBar('Nama lengkap berhasil diubah!', Colors.green);
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF6366F1),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text('Simpan', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
     );
   }
 }

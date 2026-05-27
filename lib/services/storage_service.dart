@@ -22,6 +22,8 @@ class StorageService {
   static const String _keySupabaseKey = 'supabase_key';
   static const String _keyLastSyncTime = 'last_sync_time';
   static const String _keyFeedsSeeded = 'feed_sources_seeded_sqlite'; // Check if default feeds are seeded in SQLite
+  static const String _keySelectedTitleFont = 'selected_title_font';
+  static const String _keySelectedBodyFont = 'selected_body_font';
 
   Future<void> init() async {
     if (_isInitialized) return;
@@ -36,6 +38,8 @@ class StorageService {
         await _seedDefaultFeedSources();
       }
       await _prefs.setBool(_keyFeedsSeeded, true);
+    } else {
+      await loadFeedSourcesIntoMemory();
     }
   }
 
@@ -170,6 +174,13 @@ class StorageService {
 
   String getLastSyncTime() => _prefs.getString(_keyLastSyncTime) ?? 'Belum pernah disinkronisasi';
   Future<void> setLastSyncTime(String time) async => await _prefs.setString(_keyLastSyncTime, time);
+
+  // Typography Settings
+  String getSelectedTitleFont() => _prefs.getString(_keySelectedTitleFont) ?? 'Playfair Display';
+  Future<void> setSelectedTitleFont(String fontName) async => await _prefs.setString(_keySelectedTitleFont, fontName);
+
+  String getSelectedBodyFont() => _prefs.getString(_keySelectedBodyFont) ?? 'Lora';
+  Future<void> setSelectedBodyFont(String fontName) async => await _prefs.setString(_keySelectedBodyFont, fontName);
 
   // --- SQLITE BOOKMARKS & OFFLINE ARTICLES PORTING ---
 

@@ -73,9 +73,9 @@ class GlassContainer extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  Colors.white.withOpacity(opacity + 0.15),
-                  Colors.white.withOpacity(opacity),
-                  Colors.white.withOpacity(opacity - 0.12 >= 0 ? opacity - 0.12 : 0.0),
+                  Colors.white.withOpacity((opacity + 0.15).clamp(0.0, 1.0)),
+                  Colors.white.withOpacity(opacity.clamp(0.0, 1.0)),
+                  Colors.white.withOpacity((opacity - 0.12).clamp(0.0, 1.0)),
                 ],
                 stops: const [0.0, 0.5, 1.0],
               ),

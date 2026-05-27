@@ -91,8 +91,12 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     setState(() => _isLoading = false);
 
     if (ok) {
-      _showSnackBar('Pendaftaran berhasil! Akun Anda aktif.', Colors.green);
-      _navigateToHome();
+      _showSnackBar('Pendaftaran berhasil! Silakan masuk menggunakan akun baru Anda.', Colors.green);
+      setState(() {
+        _isLoginView = true;
+        _passwordController.clear();
+        _confirmPasswordController.clear();
+      });
     } else {
       _showSnackBar('Pendaftaran gagal. Silakan coba kembali.', Colors.red);
     }

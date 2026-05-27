@@ -200,28 +200,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _getGreeting(),
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                      color: Color(0xFF0F172A), // Dark slate black
-                      letterSpacing: 0.2,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _getGreeting(),
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF0F172A), // Dark slate black
+                        letterSpacing: 0.2,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  const Text(
-                    'Umpan Ringkasan AI Terintegrasi',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.black54, // Soft grey slate
-                      fontWeight: FontWeight.w500,
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Umpan Ringkasan AI Terintegrasi',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.black54, // Soft grey slate
+                        fontWeight: FontWeight.w500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               
               IconButton(

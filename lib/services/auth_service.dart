@@ -29,6 +29,13 @@ class AuthService {
     return prefs.getString(_keyUserName) ?? 'Adrian';
   }
 
+  // Update registered user name
+  Future<void> updateUserName(String newName) async {
+    if (newName.trim().isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyUserName, newName.trim());
+  }
+
   // Get registered user email
   Future<String> getUserEmail() async {
     final prefs = await SharedPreferences.getInstance();
@@ -45,8 +52,8 @@ class AuthService {
     await prefs.setString(_keyUserPassword, password);
     await prefs.setBool(_keyUserRegistered, true);
     
-    // Auto login session on register
-    await prefs.setBool(_keySessionActive, true);
+    // Do NOT auto login session on register, require manual login
+    await prefs.setBool(_keySessionActive, false);
     
     // Default: enable biometric on register if device supports it
     final canBio = await isBiometricSupported();
