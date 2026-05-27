@@ -1,0 +1,1137 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../services/storage_service.dart';
+import '../services/gemini_service.dart';
+import '../services/backup_service.dart';
+import '../services/tts_service.dart';
+import '../services/auth_service.dart';
+import '../services/notification_service.dart';
+import '../models/feed_source.dart';
+import '../models/news_article.dart';
+import '../widgets/glass_container.dart';
+import 'login_screen.dart';
+
+class SettingsScreen extends StatefulWidget {
+  const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  final StorageService _storage = StorageService();
+  final GeminiService _gemini = GeminiService();
+  final BackupService _backup = BackupService();
+  final TtsService _tts = TtsService();
+  final AuthService _auth = AuthService();
+  final NotificationService _notifications = NotificationService();
+
+  // Controllers
+  final TextEditingController _apiKeyController = TextEditingController();
+  final TextEditingController _keywordController = TextEditingController();
+  
+  // Custom Feed Controllers
+  final TextEditingController _feedNameController = TextEditingController();
+  final TextEditingController _feedUrlController = TextEditingController();
+  String _selectedFeedType = 'rss';
+  String _selectedCategory = 'Umum';
+
+  // Supabase Controllers
+  final TextEditingController _supabaseUrlController = TextEditingController();
+  final TextEditingController _supabaseKeyController = TextEditingController();
+
+  // UI State
+  bool _obfuscateApiKey = true;
+  bool _testingGemini = false;
+  bool _syncingSupabase = false;
+  bool _testingSupabase = false;
+  
+  List<String> _blacklist = [];
+  List<FeedSource> _sources = [];
+
+  // New Features State
+  bool _biometricEnabled = false;
+  bool _deviceSupportsBiometrics = false;
+  bool _reminderEnabled = false;
+  int _reminderHour = 8;
+  int _reminderMinute = 0;
+  String _userName = 'Adrian Akbar';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    await _storage.init();
+    _apiKeyController.text = _storage.getGeminiApiKey();
+    _supabaseUrlController.text = _storage.getSupabaseUrl();
+    _supabaseKeyController.text = _storage.getSupabaseKey();
+    
+    _blacklist = _storage.getBlacklistedKeywords();
+    _sources = _storage.getFeedSources();
+
+    // Load auth & reminder preferences
+    _biometricEnabled = await _auth.isBiometricEnabled();
+    _deviceSupportsBiometrics = await _auth.isBiometricSupported();
+    _userName = await _auth.getUserName();
+
+    _reminderEnabled = await _notifications.isReminderEnabled();
+    _reminderHour = await _notifications.getReminderHour();
+    _reminderMinute = await _notifications.getReminderMinute();
+
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _apiKeyController.dispose();
+    _keywordController.dispose();
+    _feedNameController.dispose();
+    _feedUrlController.dispose();
+    _supabaseUrlController.dispose();
+    _supabaseKeyController.dispose();
+    super.dispose();
+  }
+
+  // Gemini Action Methods
+  Future<void> _testGeminiApiKey() async {
+    final key = _apiKeyController.text.trim();
+    if (key.isEmpty) {
+      _showSnackBar('Silakan masukkan API Key terlebih dahulu.', Colors.amber);
+      return;
+    }
+
+    setState(() => _testingGemini = true);
+    final success = await _gemini.testConnection(key);
+    setState(() => _testingGemini = false);
+
+    if (success) {
+      await _storage.setGeminiApiKey(key);
+      _showSnackBar('Koneksi Gemini AI Berhasil! Kunci disimpan.', Colors.green);
+    } else {
+      _showSnackBar('Koneksi Gagal. Periksa kembali API Key Anda.', Colors.red);
+    }
+  }
+
+  // Blacklist filters
+  Future<void> _addBlacklistWord() async {
+    final word = _keywordController.text.trim();
+    if (word.isEmpty) return;
+
+    await _storage.addBlacklistedKeyword(word);
+    _keywordController.clear();
+    await _loadSettings();
+    _showSnackBar('Filter kata kunci "$word" ditambahkan.', Colors.indigo);
+  }
+
+  Future<void> _removeBlacklistWord(String word) async {
+    await _storage.removeBlacklistedKeyword(word);
+    await _loadSettings();
+    _showSnackBar('Filter kata kunci "$word" dihapus.', Colors.blueGrey);
+  }
+
+  // Feed Actions
+  Future<void> _addCustomFeed() async {
+    final name = _feedNameController.text.trim();
+    final url = _feedUrlController.text.trim();
+
+    if (name.isEmpty || url.isEmpty) {
+      _showSnackBar('Nama dan URL feed tidak boleh kosong.', Colors.amber);
+      return;
+    }
+
+    final newSource = FeedSource(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: name,
+      url: url,
+      type: _selectedFeedType,
+      isEnabled: true,
+      category: _selectedCategory,
+    );
+
+    await _storage.addFeedSource(newSource);
+    
+    _feedNameController.clear();
+    _feedUrlController.clear();
+    await _loadSettings();
+    Navigator.of(context).pop();
+    _showSnackBar('Sumber berita "$name" ditambahkan!', Colors.green);
+  }
+
+  Future<void> _toggleFeedSource(FeedSource source, bool val) async {
+    await _storage.updateFeedSource(source.copyWith(isEnabled: val));
+    await _loadSettings();
+  }
+
+  Future<void> _deleteFeedSource(String id, String name) async {
+    await _storage.deleteFeedSource(id);
+    await _loadSettings();
+    _showSnackBar('Sumber "$name" dihapus.', Colors.redAccent);
+  }
+
+  // Supabase Backup Actions
+  Future<void> _syncSupabaseBackup() async {
+    final url = _supabaseUrlController.text.trim();
+    final key = _supabaseKeyController.text.trim();
+
+    if (url.isEmpty || key.isEmpty) {
+      _showSnackBar('Masukkan Supabase URL dan Key untuk sinkronisasi.', Colors.amber);
+      return;
+    }
+
+    await _storage.setSupabaseUrl(url);
+    await _storage.setSupabaseKey(key);
+
+    setState(() => _syncingSupabase = true);
+    try {
+      final success = await _backup.syncBookmarks();
+      if (success) {
+        _showSnackBar('Sinkronisasi Supabase Sukses!', Colors.green);
+      } else {
+        _showSnackBar('Sinkronisasi Gagal.', Colors.red);
+      }
+    } catch (e) {
+      _showSnackBar('Sinkronisasi Gagal: ${e.toString().replaceAll('Exception:', '')}', Colors.red);
+    } finally {
+      setState(() => _syncingSupabase = false);
+      await _loadSettings();
+    }
+  }
+
+  Future<void> _testSupabase() async {
+    final url = _supabaseUrlController.text.trim();
+    final key = _supabaseKeyController.text.trim();
+
+    if (url.isEmpty || key.isEmpty) {
+      _showSnackBar('Masukkan Supabase URL dan Key terlebih dahulu.', Colors.amber);
+      return;
+    }
+
+    setState(() => _testingSupabase = true);
+    final ok = await _backup.testConnection(url, key);
+    setState(() => _testingSupabase = false);
+
+    if (ok) {
+      _showSnackBar('Koneksi Supabase OK! Tabel atau REST Endpoint ditemukan.', Colors.green);
+    } else {
+      _showSnackBar('Koneksi gagal. Cek kembali kredensial atau pastikan tabel "bookmarks" sudah dibuat.', Colors.red);
+    }
+  }
+
+  void _testSpeech() {
+    _tts.speakArticle(
+      NewsArticle(
+        id: 'dummy-tts-settings',
+        title: 'Pengaturan Suara Siap',
+        description: 'Sampel suara pembaca berita.',
+        content: 'Halo $_userName! Fitur audio podcast berita personal Anda telah dikonfigurasi dengan sukses di tema baru Light Glass ini.',
+        url: '',
+        sourceName: 'Asisten Beritaku',
+        publishedAt: DateTime.now(),
+      )
+    );
+    _showSnackBar('Memutar sampel suara asisten...', Colors.teal);
+  }
+
+  // --- NEW FEATURES ACTIONS ---
+  
+  // Toggle Biometric Lock status
+  Future<void> _toggleBiometrics(bool val) async {
+    if (val && !_deviceSupportsBiometrics) {
+      _showSnackBar('Perangkat Anda tidak mendukung sensor biometrik sidik jari / wajah.', Colors.amber);
+      return;
+    }
+
+    await _auth.setBiometricEnabled(val);
+    setState(() {
+      _biometricEnabled = val;
+    });
+    _showSnackBar(val ? 'Keamanan Biometrik Aktif!' : 'Keamanan Biometrik Dinonaktifkan.', Colors.indigo);
+  }
+
+  // Toggle Daily Reminder Alarm
+  Future<void> _toggleDailyReminder(bool val) async {
+    await _notifications.setReminderEnabled(val);
+    setState(() {
+      _reminderEnabled = val;
+    });
+    _showSnackBar(val ? 'Pengingat Harian Diaktifkan!' : 'Pengingat Harian Dinonaktifkan.', Colors.indigo);
+  }
+
+  // Select custom reminder hour & minute using Time Picker
+  Future<void> _selectReminderTime() async {
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: _reminderHour, minute: _reminderMinute),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF6366F1), // Header text / active color
+              onPrimary: Colors.white,
+              onSurface: Color(0xFF0F172A), // Body text
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      await _notifications.setReminderHour(picked.hour);
+      await _notifications.setReminderMinute(picked.minute);
+      await _loadSettings();
+      _showSnackBar('Pengingat harian dijadwalkan pukul ${picked.format(context)}', Colors.green);
+    }
+  }
+
+  // Trigger test notification
+  Future<void> _triggerTestNotification() async {
+    await _notifications.showTestNotification();
+    _showSnackBar('Memicu notifikasi penguji ke sistem bar...', Colors.teal);
+  }
+
+  // Log out action
+  Future<void> _handleLogout() async {
+    await _auth.logoutUser();
+    _showSnackBar('Sesi masuk Anda telah diakhiri.', Colors.blueGrey);
+    
+    // Jump back to Login Screen
+    if (mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+      );
+    }
+  }
+
+  void _showSnackBar(String msg, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        backgroundColor: color.withOpacity(0.85),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        margin: const EdgeInsets.only(bottom: 100, left: 20, right: 20),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String formattedReminderTime = '${_reminderHour.toString().padLeft(2, '0')}:${_reminderMinute.toString().padLeft(2, '0')}';
+
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.only(left: 4.0, bottom: 24.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Halo, $_userName 👋',
+                      style: const TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF0F172A),
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Sesuaikan proteksi keamanan dan setelan Anda',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.black54,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // NEW SECTION: Security & Reminders (Biometrics & Daily Notification)
+          _buildSectionHeader('Keamanan & Pengingat Harian', Icons.security_rounded, Colors.indigoAccent),
+          GlassContainer(
+            opacity: 0.22,
+            borderRadius: 24,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 1. Biometrics Switch
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 16,
+                      backgroundColor: const Color(0xFF6366F1).withOpacity(0.1),
+                      child: const Icon(Icons.fingerprint_rounded, color: Color(0xFF6366F1), size: 18),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Kunci Biometrik Cepat',
+                            style: TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _deviceSupportsBiometrics 
+                                ? 'Autentikasi sidik jari/wajah saat masuk'
+                                : 'Hardware tidak didukung perangkat',
+                            style: const TextStyle(color: Colors.black45, fontSize: 10),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      value: _biometricEnabled,
+                      activeColor: const Color(0xFF6366F1),
+                      onChanged: _toggleBiometrics,
+                    )
+                  ],
+                ),
+                
+                Divider(color: Colors.black.withOpacity(0.06), height: 24),
+                
+                // 2. Daily Reminder Notifications Switch
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 16,
+                      backgroundColor: Colors.pinkAccent.withOpacity(0.1),
+                      child: const Icon(Icons.notifications_active_rounded, color: Colors.pinkAccent, size: 18),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: const [
+                          Text(
+                            'Pengingat Membaca Harian',
+                            style: TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Notifikasi alarm terjadwal membaca berita',
+                            style: TextStyle(color: Colors.black45, fontSize: 10),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      value: _reminderEnabled,
+                      activeColor: const Color(0xFF6366F1),
+                      onChanged: _toggleDailyReminder,
+                    )
+                  ],
+                ),
+                
+                // Reminder Details (if enabled, show Time Picker)
+                if (_reminderEnabled) ...[
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.02),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.black.withOpacity(0.04)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.alarm_on_rounded, color: Colors.black45, size: 16),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Waktu Alarm: $formattedReminderTime',
+                            style: const TextStyle(color: Color(0xFF0F172A), fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        
+                        // Change time button
+                        TextButton(
+                          onPressed: _selectReminderTime,
+                          child: const Text(
+                            'Ubah Waktu',
+                            style: TextStyle(color: Color(0xFF6366F1), fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 38,
+                    child: OutlinedButton.icon(
+                      onPressed: _triggerTestNotification,
+                      icon: const Icon(Icons.notifications_none_rounded, size: 14, color: Colors.pinkAccent),
+                      label: const Text('Kirim Notifikasi Uji Coba', style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 10.5)),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: Colors.pinkAccent.withOpacity(0.3)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                ]
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // 1. Gemini Config Section
+          _buildSectionHeader('Fitur AI Ringkasan (Gemini)', Icons.auto_awesome_rounded, Colors.purple),
+          GlassContainer(
+            opacity: 0.22,
+            borderRadius: 24,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Google AI Studio API Key',
+                  style: TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _apiKeyController,
+                  obscureText: _obfuscateApiKey,
+                  style: const TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.bold),
+                  decoration: InputDecoration(
+                    hintText: 'Masukkan AI Studio API Key...',
+                    hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
+                    filled: true,
+                    fillColor: Colors.black.withOpacity(0.04),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obfuscateApiKey ? Icons.visibility_off : Icons.visibility,
+                        color: Colors.black45,
+                        size: 20,
+                      ),
+                      onPressed: () => setState(() => _obfuscateApiKey = !_obfuscateApiKey),
+                    ),
+                  ),
+                  onChanged: (val) => _storage.setGeminiApiKey(val.trim()),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  height: 44,
+                  child: ElevatedButton.icon(
+                    onPressed: _testingGemini ? null : _testGeminiApiKey,
+                    icon: _testingGemini 
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.bolt_rounded, size: 18),
+                    label: Text(_testingGemini ? 'Mencoba...' : 'Test & Simpan Koneksi'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF6366F1),
+                      foregroundColor: Colors.white,
+                      shadowColor: const Color(0xFF6366F1).withOpacity(0.3),
+                      elevation: 3,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Kunci API disimpan secara lokal di HP Anda dan digunakan secara gratis langsung ke Google AI Studio.',
+                  style: TextStyle(color: Colors.black45, fontSize: 10, height: 1.4),
+                )
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // 2. Direct Source Filter Section (Blacklists)
+          _buildSectionHeader('Filter Kata Kunci (Direct Filter)', Icons.filter_list_rounded, Colors.orange),
+          GlassContainer(
+            opacity: 0.22,
+            borderRadius: 24,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Blokir Topik / Kata Kunci',
+                  style: TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _keywordController,
+                        style: const TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.bold),
+                        decoration: InputDecoration(
+                          hintText: 'Tambah kata kunci (misal: gosip)...',
+                          hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
+                          filled: true,
+                          fillColor: Colors.black.withOpacity(0.04),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                        onSubmitted: (_) => _addBlacklistWord(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: _addBlacklistWord,
+                      icon: const Icon(Icons.add_circle_rounded, color: Color(0xFF6366F1), size: 36),
+                    )
+                  ],
+                ),
+                const SizedBox(height: 14),
+                _blacklist.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8.0),
+                        child: Text(
+                          'Belum ada kata kunci yang diblokir.',
+                          style: TextStyle(color: Colors.black38, fontSize: 11, fontStyle: FontStyle.italic),
+                        ),
+                      )
+                    : Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _blacklist.map((word) {
+                          return Chip(
+                            label: Text(word, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                            backgroundColor: Colors.redAccent.withOpacity(0.85),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              side: BorderSide(color: Colors.redAccent.withOpacity(0.4)),
+                            ),
+                            deleteIcon: const Icon(Icons.close_rounded, size: 14, color: Colors.white),
+                            onDeleted: () => _removeBlacklistWord(word),
+                          );
+                        }).toList(),
+                      ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // 3. Feed Manager
+          _buildSectionHeader('Daftar Umpan Berita (Feed Manager)', Icons.rss_feed_rounded, Colors.green),
+          GlassContainer(
+            opacity: 0.22,
+            borderRadius: 24,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Sumber Aliran Berita',
+                      style: TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                    TextButton.icon(
+                      onPressed: _showAddFeedDialog,
+                      icon: const Icon(Icons.add, size: 16, color: Color(0xFF6366F1)),
+                      label: const Text('Tambah', style: TextStyle(color: Color(0xFF6366F1), fontSize: 12, fontWeight: FontWeight.bold)),
+                    )
+                  ],
+                ),
+                const SizedBox(height: 8),
+                _sources.isEmpty
+                    ? const Text(
+                        'Daftar umpan kosong.',
+                        style: TextStyle(color: Colors.black38, fontSize: 12),
+                      )
+                    : ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: _sources.length,
+                        separatorBuilder: (_, __) => Divider(color: Colors.black.withOpacity(0.05)),
+                        itemBuilder: (context, index) {
+                          final src = _sources[index];
+                          IconData typeIcon = Icons.rss_feed;
+                          if (src.type == 'reddit') typeIcon = Icons.forum_rounded;
+                          if (src.type == 'hackernews') typeIcon = Icons.terminal_rounded;
+
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4.0),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 16,
+                                  backgroundColor: Colors.black.withOpacity(0.04),
+                                  child: Icon(typeIcon, color: const Color(0xFF6366F1), size: 16),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        src.name,
+                                        style: const TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        src.type == 'reddit' ? 'r/${src.url}' : src.url,
+                                        style: const TextStyle(color: Colors.black38, fontSize: 10),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Switch(
+                                  value: src.isEnabled,
+                                  activeColor: const Color(0xFF6366F1),
+                                  onChanged: (val) => _toggleFeedSource(src, val),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
+                                  onPressed: () => _deleteFeedSource(src.id, src.name),
+                                )
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // 4. Text to Speech
+          _buildSectionHeader('Text-to-Speech (Suara Podcast)', Icons.volume_up_rounded, Colors.teal),
+          GlassContainer(
+            opacity: 0.22,
+            borderRadius: 24,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Kecepatan Membaca (Speech Rate)',
+                  style: TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                Row(
+                  children: [
+                    const Icon(Icons.directions_walk_rounded, color: Colors.black38, size: 18),
+                    Expanded(
+                      child: Slider(
+                        value: _storage.getTtsSpeed(),
+                        min: 0.3,
+                        max: 0.8,
+                        divisions: 10,
+                        activeColor: const Color(0xFF6366F1),
+                        inactiveColor: Colors.black.withOpacity(0.05),
+                        onChanged: (val) async {
+                          await _tts.setSpeed(val);
+                          setState(() {});
+                        },
+                      ),
+                    ),
+                    const Icon(Icons.directions_run_rounded, color: Colors.black38, size: 18),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Pitch Suara (Nada Suara)',
+                  style: TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                Row(
+                  children: [
+                    const Icon(Icons.vertical_align_bottom_rounded, color: Colors.black38, size: 18),
+                    Expanded(
+                      child: Slider(
+                        value: _storage.getTtsPitch(),
+                        min: 0.7,
+                        max: 1.4,
+                        divisions: 7,
+                        activeColor: const Color(0xFF6366F1),
+                        inactiveColor: Colors.black.withOpacity(0.05),
+                        onChanged: (val) async {
+                          await _tts.setPitch(val);
+                          setState(() {});
+                        },
+                      ),
+                    ),
+                    const Icon(Icons.vertical_align_top_rounded, color: Colors.black38, size: 18),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  height: 44,
+                  child: OutlinedButton.icon(
+                    onPressed: _testSpeech,
+                    icon: const Icon(Icons.hearing_rounded, size: 18, color: Color(0xFF6366F1)),
+                    label: const Text('Uji Coba Suara Asisten', style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 12)),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: const Color(0xFF6366F1).withOpacity(0.4)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // 5. Supabase Self Hosted Backup
+          _buildSectionHeader('Cloud Backup (Supabase)', Icons.cloud_done_rounded, Colors.cyan),
+          GlassContainer(
+            opacity: 0.22,
+            borderRadius: 24,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Sinkronisasi Bookmarks Mandiri',
+                  style: TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _supabaseUrlController,
+                  style: const TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                  decoration: _buildInputDecoration('Supabase URL (e.g. https://xyz.supabase.co)'),
+                  onChanged: (val) => _storage.setSupabaseUrl(val.trim()),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _supabaseKeyController,
+                  obscureText: true,
+                  style: const TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                  decoration: _buildInputDecoration('Supabase Anon / Service API Key'),
+                  onChanged: (val) => _storage.setSupabaseKey(val.trim()),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _testingSupabase ? null : _testSupabase,
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: Colors.black.withOpacity(0.12)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: Text(
+                          _testingSupabase ? 'Menghubungi...' : 'Uji Koneksi',
+                          style: const TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: _syncingSupabase ? null : _syncBookmarksAction,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.cyan.shade600,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            if (_syncingSupabase)
+                              const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            else
+                              const Icon(Icons.sync_rounded, size: 14),
+                            const SizedBox(width: 6),
+                            const Text('Sinkron Sekarang', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Terakhir Sinkron:', style: TextStyle(color: Colors.black45, fontSize: 11)),
+                    Text(_storage.getLastSyncTime(), style: const TextStyle(color: Colors.cyan, fontSize: 11, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                
+                ExpansionTile(
+                  title: const Text('Instruksi SQL Database Supabase', style: TextStyle(color: Colors.black54, fontSize: 11, fontWeight: FontWeight.bold)),
+                  iconColor: Colors.black54,
+                  collapsedIconColor: Colors.black54,
+                  tilePadding: EdgeInsets.zero,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.04),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Jalankan skrip SQL berikut di panel SQL Editor Supabase Anda untuk membuat tabel:',
+                            style: TextStyle(color: Colors.black54, fontSize: 10, height: 1.4),
+                          ),
+                          const SizedBox(height: 8),
+                          SelectableText(
+                            BackupService.supabaseSqlSetup,
+                            style: const TextStyle(color: Color(0xFF6366F1), fontFamily: 'monospace', fontSize: 9),
+                          ),
+                          const SizedBox(height: 8),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              Clipboard.setData(const ClipboardData(text: BackupService.supabaseSqlSetup));
+                              _showSnackBar('Kueri SQL disalin!', Colors.indigo);
+                            },
+                            icon: const Icon(Icons.copy, size: 12),
+                            label: const Text('Salin SQL Script', style: TextStyle(fontSize: 10)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.black.withOpacity(0.04),
+                              foregroundColor: const Color(0xFF0F172A),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            ),
+                          )
+                        ],
+                      ),
+                    )
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // 6. Logout Card Option
+          _buildSectionHeader('Autentikasi Akun', Icons.login_rounded, Colors.redAccent),
+          GlassContainer(
+            opacity: 0.22,
+            borderRadius: 24,
+            glassColor: Colors.redAccent.withOpacity(0.03),
+            customBorder: Border.all(color: Colors.redAccent.withOpacity(0.2), width: 1.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Keluar dari Sesi Aplikasi',
+                  style: TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Mengakhiri login aktif Anda dan kembali ke portal pengaman biometrik.',
+                  style: TextStyle(color: Colors.black45, fontSize: 10),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  height: 44,
+                  child: ElevatedButton.icon(
+                    onPressed: _handleLogout,
+                    icon: const Icon(Icons.exit_to_app_rounded, size: 18, color: Colors.white),
+                    label: const Text('LOGOUT AKUN', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.redAccent.shade700,
+                      foregroundColor: Colors.white,
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _syncBookmarksAction() async {
+    await _syncSupabaseBackup();
+  }
+
+  Widget _buildSectionHeader(String title, IconData icon, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4.0, bottom: 10.0, top: 8.0),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF0F172A),
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  InputDecoration _buildInputDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: Colors.black38, fontSize: 11),
+      filled: true,
+      fillColor: Colors.black.withOpacity(0.04),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+    );
+  }
+
+  void _showAddFeedDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: GlassContainer(
+            blur: 35,
+            opacity: 0.35,
+            borderRadius: 24,
+            child: StatefulBuilder(
+              builder: (context, setDialogState) {
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Tambah Umpan Berita',
+                      style: TextStyle(color: Color(0xFF0F172A), fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _feedNameController,
+                      style: const TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                      decoration: _buildInputDecoration('Nama Sumber Berita (misal: Detik News)'),
+                    ),
+                    const SizedBox(height: 10),
+                    
+                    const Text('Tipe Sumber:', style: TextStyle(color: Colors.black45, fontSize: 11, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        _buildTypeChip(setDialogState, 'rss', 'RSS XML'),
+                        const SizedBox(width: 8),
+                        _buildTypeChip(setDialogState, 'reddit', 'Reddit Sub'),
+                        const SizedBox(width: 8),
+                        _buildTypeChip(setDialogState, 'hackernews', 'HN API'),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _feedUrlController,
+                      style: const TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                      decoration: _buildInputDecoration(
+                        _selectedFeedType == 'rss' 
+                            ? 'URL RSS Feed lengkap...'
+                            : _selectedFeedType == 'reddit' 
+                                ? 'Nama Subreddit (misal: androiddev)...' 
+                                : 'Endpoint HN API default...'
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    
+                    const Text('Kategori Tab:', style: TextStyle(color: Colors.black45, fontSize: 11, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      value: _selectedCategory,
+                      dropdownColor: const Color(0xFFFAFBFD),
+                      style: const TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                      decoration: _buildInputDecoration('Kategori'),
+                      items: ['Nasional', 'Teknologi', 'Kreatif', 'Umum'].map((cat) {
+                        return DropdownMenuItem(value: cat, child: Text(cat));
+                      }).toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setDialogState(() => _selectedCategory = val);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('Batal', style: TextStyle(color: Colors.black45, fontWeight: FontWeight.bold, fontSize: 12)),
+                        ),
+                        const SizedBox(width: 10),
+                        ElevatedButton(
+                          onPressed: _addCustomFeed,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF6366F1),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          ),
+                          child: const Text('Tambah Sumber', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white)),
+                        ),
+                      ],
+                    )
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTypeChip(StateSetter setDialogState, String type, String label) {
+    final bool isSelected = _selectedFeedType == type;
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (val) {
+        if (val) {
+          setDialogState(() => _selectedFeedType = type);
+          if (type == 'hackernews') {
+            _feedUrlController.text = 'https://hacker-news.firebaseio.com/v0/topstories.json';
+            _feedNameController.text = 'Hacker News';
+          } else {
+            _feedUrlController.clear();
+            _feedNameController.clear();
+          }
+          setState(() {});
+        }
+      },
+      selectedColor: const Color(0xFF6366F1).withOpacity(0.2),
+      backgroundColor: Colors.black.withOpacity(0.04),
+      labelStyle: TextStyle(
+        color: isSelected ? const Color(0xFF6366F1) : Colors.black45,
+        fontSize: 10,
+        fontWeight: FontWeight.bold,
+      ),
+      side: BorderSide(
+        color: isSelected ? const Color(0xFF6366F1).withOpacity(0.5) : Colors.black.withOpacity(0.05),
+        width: 1,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    );
+  }
+}
