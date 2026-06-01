@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../services/storage_service.dart';
 import '../services/gemini_service.dart';
-import '../services/backup_service.dart';
+import '../main.dart';
 import '../services/tts_service.dart';
 import '../services/auth_service.dart';
+
 import '../services/notification_service.dart';
 import '../models/feed_source.dart';
 import '../models/news_article.dart';
@@ -20,16 +21,19 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  bool get _isDark => Theme.of(context).brightness == Brightness.dark;
+  Color get _textColor => _isDark ? Colors.white : const Color(0xFF0F172B);
+  Color get _subtitleColor => _isDark ? Colors.white70 : const Color(0xFF4B5563);
+  Color get _captionColor => _isDark ? Colors.white30 : const Color(0xFF9CA3AF);
+
   final StorageService _storage = StorageService();
   final GeminiService _gemini = GeminiService();
-  final BackupService _backup = BackupService();
   final TtsService _tts = TtsService();
   final AuthService _auth = AuthService();
   final NotificationService _notifications = NotificationService();
 
   // Controllers
   final TextEditingController _apiKeyController = TextEditingController();
-  final TextEditingController _keywordController = TextEditingController();
   
   // Custom Feed Controllers
   final TextEditingController _feedNameController = TextEditingController();
@@ -37,17 +41,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _selectedFeedType = 'rss';
   String _selectedCategory = 'Umum';
 
-  // Supabase Controllers
-  final TextEditingController _supabaseUrlController = TextEditingController();
-  final TextEditingController _supabaseKeyController = TextEditingController();
-
   // UI State
   bool _obfuscateApiKey = true;
   bool _testingGemini = false;
-  bool _syncingSupabase = false;
-  bool _testingSupabase = false;
   
-  List<String> _blacklist = [];
   List<FeedSource> _sources = [];
 
   // New Features State
@@ -58,28 +55,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   int _reminderMinute = 0;
   String _userName = 'Adrian Akbar';
 
-  // Typography Options
-  final List<String> _titleFonts = [
-    'Playfair Display',
-    'Merriweather',
-    'Cinzel',
-    'EB Garamond',
-    'DM Serif Display',
-    'Poppins',
-    'Montserrat',
-  ];
 
-  final List<String> _bodyFonts = [
-    'Lora',
-    'PT Serif',
-    'Crimson Pro',
-    'Inter',
-    'Roboto',
-    'Open Sans',
-  ];
-
-  String _selectedTitleFont = 'Playfair Display';
-  String _selectedBodyFont = 'Lora';
+  String _selectedThemeMode = 'system';
 
   @override
   void initState() {
@@ -90,10 +67,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadSettings() async {
     await _storage.init();
     _apiKeyController.text = _storage.getGeminiApiKey();
-    _supabaseUrlController.text = _storage.getSupabaseUrl();
-    _supabaseKeyController.text = _storage.getSupabaseKey();
     
-    _blacklist = _storage.getBlacklistedKeywords();
     _sources = _storage.getFeedSources();
 
     // Load auth & reminder preferences
@@ -105,9 +79,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _reminderHour = await _notifications.getReminderHour();
     _reminderMinute = await _notifications.getReminderMinute();
 
-    // Load typography
-    _selectedTitleFont = _storage.getSelectedTitleFont();
-    _selectedBodyFont = _storage.getSelectedBodyFont();
+
+
+    // Load theme setting
+    _selectedThemeMode = _storage.getThemeMode();
 
     if (mounted) setState(() {});
   }
@@ -115,11 +90,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void dispose() {
     _apiKeyController.dispose();
-    _keywordController.dispose();
     _feedNameController.dispose();
     _feedUrlController.dispose();
-    _supabaseUrlController.dispose();
-    _supabaseKeyController.dispose();
     super.dispose();
   }
 
@@ -143,22 +115,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  // Blacklist filters
-  Future<void> _addBlacklistWord() async {
-    final word = _keywordController.text.trim();
-    if (word.isEmpty) return;
 
-    await _storage.addBlacklistedKeyword(word);
-    _keywordController.clear();
-    await _loadSettings();
-    _showSnackBar('Filter kata kunci "$word" ditambahkan.', Colors.indigo);
-  }
-
-  Future<void> _removeBlacklistWord(String word) async {
-    await _storage.removeBlacklistedKeyword(word);
-    await _loadSettings();
-    _showSnackBar('Filter kata kunci "$word" dihapus.', Colors.blueGrey);
-  }
 
   // Feed Actions
   Future<void> _addCustomFeed() async {
@@ -199,53 +156,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _showSnackBar('Sumber "$name" dihapus.', Colors.redAccent);
   }
 
-  // Supabase Backup Actions
-  Future<void> _syncSupabaseBackup() async {
-    final url = _supabaseUrlController.text.trim();
-    final key = _supabaseKeyController.text.trim();
-
-    if (url.isEmpty || key.isEmpty) {
-      _showSnackBar('Masukkan Supabase URL dan Key untuk sinkronisasi.', Colors.amber);
-      return;
-    }
-
-    await _storage.setSupabaseUrl(url);
-    await _storage.setSupabaseKey(key);
-
-    setState(() => _syncingSupabase = true);
-    try {
-      final success = await _backup.syncBookmarks();
-      if (success) {
-        _showSnackBar('Sinkronisasi Supabase Sukses!', Colors.green);
-      } else {
-        _showSnackBar('Sinkronisasi Gagal.', Colors.red);
-      }
-    } catch (e) {
-      _showSnackBar('Sinkronisasi Gagal: ${e.toString().replaceAll('Exception:', '')}', Colors.red);
-    } finally {
-      setState(() => _syncingSupabase = false);
-      await _loadSettings();
-    }
-  }
-
-  Future<void> _testSupabase() async {
-    final url = _supabaseUrlController.text.trim();
-    final key = _supabaseKeyController.text.trim();
-
-    if (url.isEmpty || key.isEmpty) {
-      _showSnackBar('Masukkan Supabase URL dan Key terlebih dahulu.', Colors.amber);
-      return;
-    }
-
-    setState(() => _testingSupabase = true);
-    final ok = await _backup.testConnection(url, key);
-    setState(() => _testingSupabase = false);
-
-    if (ok) {
-      _showSnackBar('Koneksi Supabase OK! Tabel atau REST Endpoint ditemukan.', Colors.green);
-    } else {
-      _showSnackBar('Koneksi gagal. Cek kembali kredensial atau pastikan tabel "bookmarks" sudah dibuat.', Colors.red);
-    }
+  void _updateTheme(String newTheme) {
+    setState(() {
+      _selectedThemeMode = newTheme;
+    });
+    BeritakuApp.of(context)?.changeTheme(newTheme);
   }
 
   void _testSpeech() {
@@ -296,10 +211,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
+            colorScheme: ColorScheme.light(
               primary: Color(0xFF6366F1), // Header text / active color
               onPrimary: Colors.white,
-              onSurface: Color(0xFF0F172A), // Body text
+              onSurface: _textColor, // Body text
             ),
           ),
           child: child!,
@@ -338,11 +253,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _showSnackBar(String msg, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(msg, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        content: Text(msg, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         backgroundColor: color.withOpacity(0.85),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        margin: const EdgeInsets.only(bottom: 100, left: 20, right: 20),
+        margin: EdgeInsets.only(bottom: 100, left: 20, right: 20),
       ),
     );
   }
@@ -353,13 +268,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header
           Padding(
-            padding: const EdgeInsets.only(left: 4.0, bottom: 24.0),
+            padding: EdgeInsets.only(left: 4.0, bottom: 24.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -367,32 +282,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Halo,',
                         style: TextStyle(
                           fontSize: 14,
-                          color: Colors.black54,
+                          color: _subtitleColor,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      SizedBox(height: 2),
                       Text(
                         '$_userName 👋',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.w900,
-                          color: Color(0xFF0F172A),
+                          color: _textColor,
                           letterSpacing: 0.5,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 4),
-                      const Text(
+                      SizedBox(height: 4),
+                      Text(
                         'Sesuaikan proteksi keamanan dan setelan Anda',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.black54,
+                          color: _subtitleColor,
                           fontWeight: FontWeight.w500,
                         ),
                         maxLines: 1,
@@ -406,7 +321,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
 
           // NEW SECTION: Security & Reminders (Biometrics & Daily Notification)
-          _buildSectionHeader('Keamanan & Pengingat Harian', Icons.security_rounded, Colors.indigoAccent),
+          _buildSectionHeader('Keamanan & Pengingat Harian', LucideIcons.shield, Colors.indigoAccent),
           GlassContainer(
             opacity: 0.22,
             borderRadius: 24,
@@ -419,23 +334,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     CircleAvatar(
                       radius: 16,
                       backgroundColor: const Color(0xFF6366F1).withOpacity(0.1),
-                      child: const Icon(Icons.fingerprint_rounded, color: Color(0xFF6366F1), size: 18),
+                      child: Icon(LucideIcons.fingerprint, color: const Color(0xFF6366F1), size: 18),
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Kunci Biometrik Cepat',
-                            style: TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                            style: TextStyle(color: _textColor, fontSize: 12, fontWeight: FontWeight.bold),
                           ),
-                          const SizedBox(height: 2),
+                          SizedBox(height: 2),
                           Text(
                             _deviceSupportsBiometrics 
                                 ? 'Autentikasi sidik jari/wajah saat masuk'
                                 : 'Hardware tidak didukung perangkat',
-                            style: const TextStyle(color: Colors.black45, fontSize: 10),
+                            style: TextStyle(color: _captionColor, fontSize: 10),
                           ),
                         ],
                       ),
@@ -448,7 +363,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ],
                 ),
                 
-                Divider(color: Colors.black.withOpacity(0.06), height: 24),
+                Divider(color: _textColor.withOpacity(0.06), height: 24),
                 
                 // 2. Daily Reminder Notifications Switch
                 Row(
@@ -456,21 +371,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     CircleAvatar(
                       radius: 16,
                       backgroundColor: Colors.pinkAccent.withOpacity(0.1),
-                      child: const Icon(Icons.notifications_active_rounded, color: Colors.pinkAccent, size: 18),
+                      child: Icon(LucideIcons.bell, color: Colors.pinkAccent, size: 18),
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
+                        children: [
                           Text(
                             'Pengingat Membaca Harian',
-                            style: TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                            style: TextStyle(color: _textColor, fontSize: 12, fontWeight: FontWeight.bold),
                           ),
                           SizedBox(height: 2),
                           Text(
                             'Notifikasi alarm terjadwal membaca berita',
-                            style: TextStyle(color: Colors.black45, fontSize: 10),
+                            style: TextStyle(color: _captionColor, fontSize: 10),
                           ),
                         ],
                       ),
@@ -485,29 +400,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 
                 // Reminder Details (if enabled, show Time Picker)
                 if (_reminderEnabled) ...[
-                  const SizedBox(height: 14),
+                  SizedBox(height: 14),
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.02),
+                      color: _textColor.withOpacity(0.02),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.black.withOpacity(0.04)),
+                      border: Border.all(color: _textColor.withOpacity(0.04)),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.alarm_on_rounded, color: Colors.black45, size: 16),
-                        const SizedBox(width: 8),
+                        Icon(LucideIcons.alarmClock, color: _captionColor, size: 16),
+                        SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             'Waktu Alarm: $formattedReminderTime',
-                            style: const TextStyle(color: Color(0xFF0F172A), fontSize: 11, fontWeight: FontWeight.bold),
+                            style: TextStyle(color: _textColor, fontSize: 11, fontWeight: FontWeight.bold),
                           ),
                         ),
                         
                         // Change time button
                         TextButton(
                           onPressed: _selectReminderTime,
-                          child: const Text(
+                          child: Text(
                             'Ubah Waktu',
                             style: TextStyle(color: Color(0xFF6366F1), fontSize: 11, fontWeight: FontWeight.bold),
                           ),
@@ -515,14 +430,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  SizedBox(height: 10),
                   SizedBox(
                     width: double.infinity,
                     height: 38,
                     child: OutlinedButton.icon(
                       onPressed: _triggerTestNotification,
-                      icon: const Icon(Icons.notifications_none_rounded, size: 14, color: Colors.pinkAccent),
-                      label: const Text('Kirim Notifikasi Uji Coba', style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 10.5)),
+                      icon: Icon(LucideIcons.bellOff, size: 14, color: Colors.pinkAccent),
+                      label: Text('Kirim Notifikasi Uji Coba', style: TextStyle(color: _textColor, fontWeight: FontWeight.bold, fontSize: 10.5)),
                       style: OutlinedButton.styleFrom(
                         side: BorderSide(color: Colors.pinkAccent.withOpacity(0.3)),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -533,39 +448,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
 
           // 1. Gemini Config Section
-          _buildSectionHeader('Fitur AI Ringkasan (Gemini)', Icons.auto_awesome_rounded, Colors.purple),
+          _buildSectionHeader('Fitur AI Ringkasan (Gemini)', LucideIcons.sparkles, Colors.purple),
           GlassContainer(
             opacity: 0.22,
             borderRadius: 24,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Google AI Studio API Key',
-                  style: TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: _textColor, fontSize: 12, fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 TextField(
                   controller: _apiKeyController,
                   obscureText: _obfuscateApiKey,
-                  style: const TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: _textColor, fontSize: 13, fontWeight: FontWeight.bold),
                   decoration: InputDecoration(
                     hintText: 'Masukkan AI Studio API Key...',
-                    hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
+                    hintStyle: TextStyle(color: _captionColor, fontSize: 13),
                     filled: true,
-                    fillColor: Colors.black.withOpacity(0.04),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    fillColor: _textColor.withOpacity(0.04),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
                       borderSide: BorderSide.none,
                     ),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obfuscateApiKey ? Icons.visibility_off : Icons.visibility,
-                        color: Colors.black45,
+                        _obfuscateApiKey ? LucideIcons.eyeOff : LucideIcons.eye,
+                        color: _captionColor,
                         size: 20,
                       ),
                       onPressed: () => setState(() => _obfuscateApiKey = !_obfuscateApiKey),
@@ -573,15 +488,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   onChanged: (val) => _storage.setGeminiApiKey(val.trim()),
                 ),
-                const SizedBox(height: 14),
+                SizedBox(height: 14),
                 SizedBox(
                   width: double.infinity,
                   height: 44,
                   child: ElevatedButton.icon(
                     onPressed: _testingGemini ? null : _testGeminiApiKey,
                     icon: _testingGemini 
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Icon(Icons.bolt_rounded, size: 18),
+                        ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : Icon(LucideIcons.zap, size: 18),
                     label: Text(_testingGemini ? 'Mencoba...' : 'Test & Simpan Koneksi'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF6366F1),
@@ -589,92 +504,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       shadowColor: const Color(0xFF6366F1).withOpacity(0.3),
                       elevation: 3,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                      textStyle: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
                     ),
                   ),
                 ),
-                const SizedBox(height: 8),
-                const Text(
+                SizedBox(height: 8),
+                Text(
                   'Kunci API disimpan secara lokal di HP Anda dan digunakan secara gratis langsung ke Google AI Studio.',
-                  style: TextStyle(color: Colors.black45, fontSize: 10, height: 1.4),
+                  style: TextStyle(color: _captionColor, fontSize: 10, height: 1.4),
                 )
               ],
             ),
           ),
-          const SizedBox(height: 24),
 
-          // 2. Direct Source Filter Section (Blacklists)
-          _buildSectionHeader('Filter Kata Kunci (Direct Filter)', Icons.filter_list_rounded, Colors.orange),
-          GlassContainer(
-            opacity: 0.22,
-            borderRadius: 24,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Blokir Topik / Kata Kunci',
-                  style: TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _keywordController,
-                        style: const TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.bold),
-                        decoration: InputDecoration(
-                          hintText: 'Tambah kata kunci (misal: gosip)...',
-                          hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
-                          filled: true,
-                          fillColor: Colors.black.withOpacity(0.04),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
-                        onSubmitted: (_) => _addBlacklistWord(),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      onPressed: _addBlacklistWord,
-                      icon: const Icon(Icons.add_circle_rounded, color: Color(0xFF6366F1), size: 36),
-                    )
-                  ],
-                ),
-                const SizedBox(height: 14),
-                _blacklist.isEmpty
-                    ? const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8.0),
-                        child: Text(
-                          'Belum ada kata kunci yang diblokir.',
-                          style: TextStyle(color: Colors.black38, fontSize: 11, fontStyle: FontStyle.italic),
-                        ),
-                      )
-                    : Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: _blacklist.map((word) {
-                          return Chip(
-                            label: Text(word, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                            backgroundColor: Colors.redAccent.withOpacity(0.85),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              side: BorderSide(color: Colors.redAccent.withOpacity(0.4)),
-                            ),
-                            deleteIcon: const Icon(Icons.close_rounded, size: 14, color: Colors.white),
-                            onDeleted: () => _removeBlacklistWord(word),
-                          );
-                        }).toList(),
-                      ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
 
           // 3. Feed Manager
-          _buildSectionHeader('Daftar Umpan Berita (Feed Manager)', Icons.rss_feed_rounded, Colors.green),
+          _buildSectionHeader('Daftar Umpan Berita (Feed Manager)', LucideIcons.rss, Colors.green),
           GlassContainer(
             opacity: 0.22,
             borderRadius: 24,
@@ -684,56 +530,56 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
+                    Text(
                       'Sumber Aliran Berita',
-                      style: TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                      style: TextStyle(color: _textColor, fontSize: 12, fontWeight: FontWeight.bold),
                     ),
                     TextButton.icon(
                       onPressed: _showAddFeedDialog,
-                      icon: const Icon(Icons.add, size: 16, color: Color(0xFF6366F1)),
-                      label: const Text('Tambah', style: TextStyle(color: Color(0xFF6366F1), fontSize: 12, fontWeight: FontWeight.bold)),
+                      icon: Icon(LucideIcons.plus, size: 16, color: const Color(0xFF6366F1)),
+                      label: Text('Tambah', style: TextStyle(color: const Color(0xFF6366F1), fontSize: 12, fontWeight: FontWeight.bold)),
                     )
                   ],
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 _sources.isEmpty
-                    ? const Text(
+                    ? Text(
                         'Daftar umpan kosong.',
-                        style: TextStyle(color: Colors.black38, fontSize: 12),
+                        style: TextStyle(color: _captionColor, fontSize: 12),
                       )
                     : ListView.separated(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         itemCount: _sources.length,
-                        separatorBuilder: (_, __) => Divider(color: Colors.black.withOpacity(0.05)),
+                        separatorBuilder: (_, __) => Divider(color: _textColor.withOpacity(0.05)),
                         itemBuilder: (context, index) {
                           final src = _sources[index];
-                          IconData typeIcon = Icons.rss_feed;
-                          if (src.type == 'reddit') typeIcon = Icons.forum_rounded;
-                          if (src.type == 'hackernews') typeIcon = Icons.terminal_rounded;
+                          IconData typeIcon = LucideIcons.rss;
+                          if (src.type == 'reddit') typeIcon = LucideIcons.messageSquare;
+                          if (src.type == 'hackernews') typeIcon = LucideIcons.terminal;
 
                           return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4.0),
+                            padding: EdgeInsets.symmetric(vertical: 4.0),
                             child: Row(
                               children: [
                                 CircleAvatar(
                                   radius: 16,
-                                  backgroundColor: Colors.black.withOpacity(0.04),
+                                  backgroundColor: _textColor.withOpacity(0.04),
                                   child: Icon(typeIcon, color: const Color(0xFF6366F1), size: 16),
                                 ),
-                                const SizedBox(width: 12),
+                                SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         src.name,
-                                        style: const TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                                        style: TextStyle(color: _textColor, fontSize: 12, fontWeight: FontWeight.bold),
                                       ),
-                                      const SizedBox(height: 2),
+                                      SizedBox(height: 2),
                                       Text(
                                         src.type == 'reddit' ? 'r/${src.url}' : src.url,
-                                        style: const TextStyle(color: Colors.black38, fontSize: 10),
+                                        style: TextStyle(color: _captionColor, fontSize: 10),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                       ),
@@ -746,7 +592,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   onChanged: (val) => _toggleFeedSource(src, val),
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
+                                  icon: Icon(LucideIcons.trash2, color: Colors.redAccent, size: 20),
                                   onPressed: () => _deleteFeedSource(src.id, src.name),
                                 )
                               ],
@@ -757,23 +603,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
 
           // 4. Text to Speech
-          _buildSectionHeader('Text-to-Speech (Suara Podcast)', Icons.volume_up_rounded, Colors.teal),
+          _buildSectionHeader('Text-to-Speech (Suara Podcast)', LucideIcons.volume2, Colors.teal),
           GlassContainer(
             opacity: 0.22,
             borderRadius: 24,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Kecepatan Membaca (Speech Rate)',
-                  style: TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: _textColor, fontSize: 12, fontWeight: FontWeight.bold),
                 ),
                 Row(
                   children: [
-                    const Icon(Icons.directions_walk_rounded, color: Colors.black38, size: 18),
+                    Icon(LucideIcons.activity, color: _captionColor, size: 18),
                     Expanded(
                       child: Slider(
                         value: _storage.getTtsSpeed(),
@@ -781,24 +627,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         max: 0.8,
                         divisions: 10,
                         activeColor: const Color(0xFF6366F1),
-                        inactiveColor: Colors.black.withOpacity(0.05),
+                        inactiveColor: _textColor.withOpacity(0.05),
                         onChanged: (val) async {
                           await _tts.setSpeed(val);
                           setState(() {});
                         },
                       ),
                     ),
-                    const Icon(Icons.directions_run_rounded, color: Colors.black38, size: 18),
+                    Icon(LucideIcons.zap, color: _captionColor, size: 18),
                   ],
                 ),
-                const SizedBox(height: 10),
-                const Text(
+                SizedBox(height: 10),
+                Text(
                   'Pitch Suara (Nada Suara)',
-                  style: TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: _textColor, fontSize: 12, fontWeight: FontWeight.bold),
                 ),
                 Row(
                   children: [
-                    const Icon(Icons.vertical_align_bottom_rounded, color: Colors.black38, size: 18),
+                    Icon(LucideIcons.chevronDown, color: _captionColor, size: 18),
                     Expanded(
                       child: Slider(
                         value: _storage.getTtsPitch(),
@@ -806,24 +652,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         max: 1.4,
                         divisions: 7,
                         activeColor: const Color(0xFF6366F1),
-                        inactiveColor: Colors.black.withOpacity(0.05),
+                        inactiveColor: _textColor.withOpacity(0.05),
                         onChanged: (val) async {
                           await _tts.setPitch(val);
                           setState(() {});
                         },
                       ),
                     ),
-                    const Icon(Icons.vertical_align_top_rounded, color: Colors.black38, size: 18),
+                    Icon(LucideIcons.chevronUp, color: _captionColor, size: 18),
                   ],
                 ),
-                const SizedBox(height: 14),
+                SizedBox(height: 14),
                 SizedBox(
                   width: double.infinity,
                   height: 44,
                   child: OutlinedButton.icon(
                     onPressed: _testSpeech,
-                    icon: const Icon(Icons.hearing_rounded, size: 18, color: Color(0xFF6366F1)),
-                    label: const Text('Uji Coba Suara Asisten', style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 12)),
+                    icon: const Icon(LucideIcons.headphones, size: 18, color: Color(0xFF6366F1)),
+                    label: Text('Uji Coba Suara Asisten', style: TextStyle(color: _textColor, fontWeight: FontWeight.bold, fontSize: 12)),
                     style: OutlinedButton.styleFrom(
                       side: BorderSide(color: const Color(0xFF6366F1).withOpacity(0.4)),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -833,215 +679,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 24),
 
-          // 4b. Typography & Fonts Section
-          _buildSectionHeader('Gaya Tipografi & Font', Icons.text_fields_rounded, Colors.deepOrangeAccent),
+          SizedBox(height: 24),
+
+          // 5. Tema Pilihan (Dark, Light, System)
+          _buildSectionHeader('Tampilan & Tema', LucideIcons.palette, Colors.indigo),
           GlassContainer(
             opacity: 0.22,
             borderRadius: 24,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Pilih Font Judul Berita',
-                  style: TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                Text(
+                  'Tema Aplikasi',
+                  style: TextStyle(
+                    color: _textColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-                const SizedBox(height: 8),
-                _buildFontDropdown(
-                  value: _selectedTitleFont,
-                  items: _titleFonts,
-                  onChanged: (val) async {
-                    if (val != null) {
-                      await _storage.setSelectedTitleFont(val);
-                      setState(() => _selectedTitleFont = val);
-                      _showSnackBar('Font Judul diubah menjadi: $val', Colors.deepOrangeAccent);
-                    }
-                  },
+                const SizedBox(height: 4),
+                Text(
+                  'Sesuaikan tampilan visual portal berita sesuai kenyamanan mata Anda.',
+                  style: TextStyle(color: _captionColor, fontSize: 10),
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  'Pilih Font Isi Berita (Detail)',
-                  style: TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                _buildFontDropdown(
-                  value: _selectedBodyFont,
-                  items: _bodyFonts,
-                  onChanged: (val) async {
-                    if (val != null) {
-                      await _storage.setSelectedBodyFont(val);
-                      setState(() => _selectedBodyFont = val);
-                      _showSnackBar('Font Isi Berita diubah menjadi: $val', Colors.deepOrangeAccent);
-                    }
-                  },
-                ),
-                const SizedBox(height: 14),
-                // Beautiful Preview box
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.02),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.black.withOpacity(0.04)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'PREVIEW EDITORIAL',
-                        style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, color: Colors.black38, letterSpacing: 0.5),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Judul Sampel Beritaku',
-                        style: GoogleFonts.getFont(
-                          _selectedTitleFont,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFF0F172A),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Ini adalah contoh paragraf yang memvisualisasikan keterbacaan teks utama artikel dengan font yang Anda pilih.',
-                        style: GoogleFonts.getFont(
-                          _selectedBodyFont,
-                          fontSize: 11,
-                          color: Colors.black87,
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // 5. Supabase Self Hosted Backup
-          _buildSectionHeader('Cloud Backup (Supabase)', Icons.cloud_done_rounded, Colors.cyan),
-          GlassContainer(
-            opacity: 0.22,
-            borderRadius: 24,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Sinkronisasi Bookmarks Mandiri',
-                  style: TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _supabaseUrlController,
-                  style: const TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
-                  decoration: _buildInputDecoration('Supabase URL (e.g. https://xyz.supabase.co)'),
-                  onChanged: (val) => _storage.setSupabaseUrl(val.trim()),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _supabaseKeyController,
-                  obscureText: true,
-                  style: const TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
-                  decoration: _buildInputDecoration('Supabase Anon / Service API Key'),
-                  onChanged: (val) => _storage.setSupabaseKey(val.trim()),
-                ),
-                const SizedBox(height: 14),
                 Row(
                   children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: _testingSupabase ? null : _testSupabase,
-                        style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: Colors.black.withOpacity(0.12)),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        child: Text(
-                          _testingSupabase ? 'Menghubungi...' : 'Uji Koneksi',
-                          style: const TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 12),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: _syncingSupabase ? null : _syncBookmarksAction,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.cyan.shade600,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            if (_syncingSupabase)
-                              const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            else
-                              const Icon(Icons.sync_rounded, size: 14),
-                            const SizedBox(width: 6),
-                            const Text('Sinkron Sekarang', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Terakhir Sinkron:', style: TextStyle(color: Colors.black45, fontSize: 11)),
-                    Text(_storage.getLastSyncTime(), style: const TextStyle(color: Colors.cyan, fontSize: 11, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                
-                ExpansionTile(
-                  title: const Text('Instruksi SQL Database Supabase', style: TextStyle(color: Colors.black54, fontSize: 11, fontWeight: FontWeight.bold)),
-                  iconColor: Colors.black54,
-                  collapsedIconColor: Colors.black54,
-                  tilePadding: EdgeInsets.zero,
-                  children: [
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.04),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Jalankan skrip SQL berikut di panel SQL Editor Supabase Anda untuk membuat tabel:',
-                            style: TextStyle(color: Colors.black54, fontSize: 10, height: 1.4),
-                          ),
-                          const SizedBox(height: 8),
-                          SelectableText(
-                            BackupService.supabaseSqlSetup,
-                            style: const TextStyle(color: Color(0xFF6366F1), fontFamily: 'monospace', fontSize: 9),
-                          ),
-                          const SizedBox(height: 8),
-                          ElevatedButton.icon(
-                            onPressed: () {
-                              Clipboard.setData(const ClipboardData(text: BackupService.supabaseSqlSetup));
-                              _showSnackBar('Kueri SQL disalin!', Colors.indigo);
-                            },
-                            icon: const Icon(Icons.copy, size: 12),
-                            label: const Text('Salin SQL Script', style: TextStyle(fontSize: 10)),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.black.withOpacity(0.04),
-                              foregroundColor: const Color(0xFF0F172A),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            ),
-                          )
-                        ],
-                      ),
-                    )
+                    _buildThemeChoiceCard('system', LucideIcons.sliders, 'Sistem'),
+                    const SizedBox(width: 8),
+                    _buildThemeChoiceCard('light', LucideIcons.sun, 'Terang'),
+                    const SizedBox(width: 8),
+                    _buildThemeChoiceCard('dark', LucideIcons.moon, 'Gelap'),
                   ],
                 ),
               ],
@@ -1050,7 +719,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
 
           // 6. Logout & Profil Card Option
-          _buildSectionHeader('Profil & Autentikasi', Icons.person_rounded, Colors.redAccent),
+          _buildSectionHeader('Profil & Autentikasi', LucideIcons.user, Colors.redAccent),
           GlassContainer(
             opacity: 0.22,
             borderRadius: 24,
@@ -1059,14 +728,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Kelola Informasi Profil',
-                  style: TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    color: _textColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'Nama Anda saat ini: $_userName',
-                  style: const TextStyle(color: Colors.black54, fontSize: 10),
+                  style: TextStyle(color: _subtitleColor, fontSize: 10),
                 ),
                 const SizedBox(height: 14),
                 Row(
@@ -1074,12 +747,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: _showEditNameDialog,
-                        icon: const Icon(Icons.edit_rounded, size: 14, color: Color(0xFF6366F1)),
-                        label: const Text('Ubah Nama', style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 11)),
+                        icon: const Icon(LucideIcons.edit3, size: 14, color: Color(0xFF6366F1)),
+                        label: Text(
+                          'Ubah Nama',
+                          style: TextStyle(
+                            color: _textColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                          ),
+                        ),
                         style: OutlinedButton.styleFrom(
                           side: BorderSide(color: const Color(0xFF6366F1).withOpacity(0.35)),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          padding: EdgeInsets.symmetric(vertical: 10),
                         ),
                       ),
                     ),
@@ -1087,13 +767,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: _handleLogout,
-                        icon: const Icon(Icons.exit_to_app_rounded, size: 14, color: Colors.white),
+                        icon: const Icon(LucideIcons.logOut, size: 14, color: Colors.white),
                         label: const Text('LOGOUT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.redAccent.shade700,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          padding: EdgeInsets.symmetric(vertical: 10),
                         ),
                       ),
                     ),
@@ -1108,23 +788,77 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Future<void> _syncBookmarksAction() async {
-    await _syncSupabaseBackup();
+  Widget _buildThemeChoiceCard(String mode, IconData icon, String label) {
+    final bool isSelected = _selectedThemeMode == mode;
+    
+    return Expanded(
+      child: InkWell(
+        onTap: () => _updateTheme(mode),
+        borderRadius: BorderRadius.circular(16),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? const Color(0xFF6366F1)
+                : (_isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.02)),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isSelected
+                  ? const Color(0xFF6366F1)
+                  : (_isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05)),
+              width: 1.5,
+            ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFF6366F1).withOpacity(0.3),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    )
+                  ]
+                : null,
+          ),
+          child: Column(
+            children: [
+              Icon(
+                icon,
+                color: isSelected
+                    ? Colors.white
+                    : (_isDark ? Colors.white70 : _textColor),
+                size: 20,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected
+                      ? Colors.white
+                      : (_isDark ? Colors.white70 : _textColor),
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildSectionHeader(String title, IconData icon, Color color) {
     return Padding(
-      padding: const EdgeInsets.only(left: 4.0, bottom: 10.0, top: 8.0),
+      padding: EdgeInsets.only(left: 4.0, bottom: 10.0, top: 8.0),
       child: Row(
         children: [
           Icon(icon, color: color, size: 18),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF0F172A),
+              color: _textColor,
               letterSpacing: 0.2,
             ),
           ),
@@ -1136,10 +870,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   InputDecoration _buildInputDecoration(String hint) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(color: Colors.black38, fontSize: 11),
+      hintStyle: TextStyle(color: _captionColor, fontSize: 11),
       filled: true,
-      fillColor: Colors.black.withOpacity(0.04),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      fillColor: _textColor.withOpacity(0.04),
+      contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide.none,
@@ -1163,33 +897,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Tambah Umpan Berita',
-                      style: TextStyle(color: Color(0xFF0F172A), fontSize: 16, fontWeight: FontWeight.bold),
+                      style: TextStyle(color: _textColor, fontSize: 16, fontWeight: FontWeight.bold),
                     ),
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16),
                     TextField(
                       controller: _feedNameController,
-                      style: const TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                      style: TextStyle(color: _textColor, fontSize: 12, fontWeight: FontWeight.bold),
                       decoration: _buildInputDecoration('Nama Sumber Berita (misal: Detik News)'),
                     ),
-                    const SizedBox(height: 10),
+                    SizedBox(height: 10),
                     
-                    const Text('Tipe Sumber:', style: TextStyle(color: Colors.black45, fontSize: 11, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 6),
+                    Text('Tipe Sumber:', style: TextStyle(color: _captionColor, fontSize: 11, fontWeight: FontWeight.bold)),
+                    SizedBox(height: 6),
                     Row(
                       children: [
                         _buildTypeChip(setDialogState, 'rss', 'RSS XML'),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         _buildTypeChip(setDialogState, 'reddit', 'Reddit Sub'),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         _buildTypeChip(setDialogState, 'hackernews', 'HN API'),
                       ],
                     ),
-                    const SizedBox(height: 10),
+                    SizedBox(height: 10),
                     TextField(
                       controller: _feedUrlController,
-                      style: const TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                      style: TextStyle(color: _textColor, fontSize: 12, fontWeight: FontWeight.bold),
                       decoration: _buildInputDecoration(
                         _selectedFeedType == 'rss' 
                             ? 'URL RSS Feed lengkap...'
@@ -1198,14 +932,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 : 'Endpoint HN API default...'
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    SizedBox(height: 14),
                     
-                    const Text('Kategori Tab:', style: TextStyle(color: Colors.black45, fontSize: 11, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 6),
+                    Text('Kategori Tab:', style: TextStyle(color: _captionColor, fontSize: 11, fontWeight: FontWeight.bold)),
+                    SizedBox(height: 6),
                     DropdownButtonFormField<String>(
                       value: _selectedCategory,
-                      dropdownColor: const Color(0xFFFAFBFD),
-                      style: const TextStyle(color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.bold),
+                      dropdownColor: _isDark ? const Color(0xFF1E293B) : const Color(0xFFFAFBFD),
+                      style: TextStyle(color: _textColor, fontSize: 12, fontWeight: FontWeight.bold),
                       decoration: _buildInputDecoration('Kategori'),
                       items: ['Nasional', 'Teknologi', 'Kreatif', 'Umum'].map((cat) {
                         return DropdownMenuItem(value: cat, child: Text(cat));
@@ -1216,23 +950,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         }
                       },
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
                         TextButton(
                           onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('Batal', style: TextStyle(color: Colors.black45, fontWeight: FontWeight.bold, fontSize: 12)),
+                          child: Text('Batal', style: TextStyle(color: _captionColor, fontWeight: FontWeight.bold, fontSize: 12)),
                         ),
-                        const SizedBox(width: 10),
+                        SizedBox(width: 10),
                         ElevatedButton(
                           onPressed: _addCustomFeed,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF6366F1),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                           ),
-                          child: const Text('Tambah Sumber', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white)),
+                          child: Text('Tambah Sumber', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white)),
                         ),
                       ],
                     )
@@ -1265,52 +999,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       },
       selectedColor: const Color(0xFF6366F1).withOpacity(0.2),
-      backgroundColor: Colors.black.withOpacity(0.04),
+      backgroundColor: _textColor.withOpacity(0.04),
       labelStyle: TextStyle(
-        color: isSelected ? const Color(0xFF6366F1) : Colors.black45,
+        color: isSelected ? const Color(0xFF6366F1) : _captionColor,
         fontSize: 10,
         fontWeight: FontWeight.bold,
       ),
       side: BorderSide(
-        color: isSelected ? const Color(0xFF6366F1).withOpacity(0.5) : Colors.black.withOpacity(0.05),
+        color: isSelected ? const Color(0xFF6366F1).withOpacity(0.5) : _textColor.withOpacity(0.05),
         width: 1,
       ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     );
   }
 
-  Widget _buildFontDropdown({
-    required String value,
-    required List<String> items,
-    required ValueChanged<String?> onChanged,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.04),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          isExpanded: true,
-          dropdownColor: const Color(0xFFFAFBFD),
-          icon: const Icon(Icons.arrow_drop_down_rounded, color: Colors.black45),
-          style: const TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.bold),
-          onChanged: onChanged,
-          items: items.map((font) {
-            return DropdownMenuItem<String>(
-              value: font,
-              child: Text(
-                font,
-                style: GoogleFonts.getFont(font),
-              ),
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
+
 
   void _showEditNameDialog() {
     final TextEditingController nameEditController = TextEditingController(text: _userName);
@@ -1318,46 +1021,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: const Color(0xFFF5F6FA),
+          backgroundColor: _isDark ? const Color(0xFF1E293B) : const Color(0xFFF5F6FA),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           title: Row(
-            children: const [
-              Icon(Icons.badge_rounded, color: Color(0xFF6366F1), size: 22),
+            children: [
+              Icon(LucideIcons.user, color: const Color(0xFF6366F1), size: 22),
               SizedBox(width: 8),
-              Text('Ubah Nama Lengkap', style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 16)),
+              Text('Ubah Nama Lengkap', style: TextStyle(color: _textColor, fontWeight: FontWeight.bold, fontSize: 16)),
             ],
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Masukkan nama lengkap baru Anda:',
-                style: TextStyle(color: Colors.black54, fontSize: 12),
+                style: TextStyle(color: _subtitleColor, fontSize: 12),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               TextField(
                 controller: nameEditController,
-                style: const TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.bold),
+                style: TextStyle(color: _textColor, fontSize: 13, fontWeight: FontWeight.bold),
                 decoration: InputDecoration(
                   filled: true,
-                  fillColor: Colors.black.withOpacity(0.04),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  fillColor: _textColor.withOpacity(0.04),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
                     borderSide: BorderSide.none,
                   ),
-                  prefixIcon: const Icon(Icons.person_outline_rounded, color: Colors.black45, size: 18),
+                  prefixIcon: Icon(LucideIcons.user, color: _captionColor, size: 18),
                 ),
                 autofocus: true,
               ),
             ],
           ),
-          actionsPadding: const EdgeInsets.only(bottom: 16, right: 16, left: 16),
+          actionsPadding: EdgeInsets.only(bottom: 16, right: 16, left: 16),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Batal', style: TextStyle(color: Colors.black54, fontWeight: FontWeight.bold)),
+              child: Text('Batal', style: TextStyle(color: _subtitleColor, fontWeight: FontWeight.bold)),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -1378,7 +1081,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              child: const Text('Simpan', style: TextStyle(fontWeight: FontWeight.bold)),
+              child: Text('Simpan', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ],
         );

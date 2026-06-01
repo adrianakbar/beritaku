@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 import '../widgets/liquid_background.dart';
 import '../widgets/glass_container.dart';
 import 'main_navigation.dart';
+
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -25,6 +28,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   bool _isObscure = true;
   bool _isLoading = false;
   bool _deviceHasBiometrics = false;
+  bool _isBiometricOnlyLock = false;
+  String _welcomeName = '';
 
   late AnimationController _pulseController;
 
@@ -52,12 +57,35 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
   Future<void> _checkBiometricsSupport() async {
     final hasBio = await _auth.isBiometricSupported();
+    final sessionActive = await _auth.isSessionActive();
+    final bioEnabled = await _auth.isBiometricEnabled();
+    final name = await _auth.getUserName();
+    
     if (mounted) {
       setState(() {
         _deviceHasBiometrics = hasBio;
+        _isBiometricOnlyLock = sessionActive && bioEnabled;
+        _welcomeName = name;
       });
+
+      if (_isBiometricOnlyLock) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _handleBiometricLogin();
+        });
+      }
     }
   }
+
+  Future<void> _handleSwitchAccount() async {
+    await _auth.logoutUser();
+    setState(() {
+      _isBiometricOnlyLock = false;
+      _isLoginView = true;
+      _emailController.clear();
+      _passwordController.clear();
+    });
+  }
+
 
   @override
   void dispose() {
@@ -168,6 +196,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
   // Beautiful fingerprint simulation dialog for immediate testing
   void _showBiometricSimulationDialog() {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     showDialog(
       context: context,
       builder: (context) {
@@ -182,18 +211,28 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                 await Future.delayed(const Duration(milliseconds: 600));
                 if (context.mounted) {
                   Navigator.of(context).pop(); // Dismiss scanner
-                  final prefs = await _auth.registerUser('Adrian Akbar', 'user@example.com', 'pass'); // Auto seed to proceed
+                  
+                  final registered = await _auth.isUserRegistered();
+                  if (!registered) {
+                    await _auth.registerUser('Adrian Akbar', 'user@example.com', 'pass'); // Auto seed to proceed
+                  }
+                  
+                  // Set session active
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setBool('auth_session_active', true);
+                  
                   _showSnackBar('Autentikasi Biometrik Sukses (Simulasi)!', Colors.green);
                   _navigateToHome();
                 }
               }
             });
 
+
             return Dialog(
               backgroundColor: Colors.transparent,
               child: GlassContainer(
                 blur: 35,
-                opacity: 0.2,
+                opacity: isDark ? 0.25 : 0.2,
                 borderRadius: 28,
                 padding: const EdgeInsets.all(24),
                 child: Column(
@@ -201,7 +240,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                   children: [
                     Text(
                       scanning ? 'Pindai Sidik Jari / Wajah' : 'Verifikasi Berhasil!',
-                      style: const TextStyle(color: Color(0xFF0F172A), fontSize: 16, fontWeight: FontWeight.bold),
+                      style: TextStyle(color: isDark ? Colors.white : const Color(0xFF0F172A), fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 24),
                     
@@ -221,7 +260,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         
                         // Fingerprint Glowing Scanner Icon
                         Icon(
-                          scanning ? Icons.fingerprint_rounded : Icons.check_circle_rounded,
+                          scanning ? LucideIcons.fingerprint : LucideIcons.checkCircle,
                           color: scanning ? const Color(0xFF6366F1) : Colors.green,
                           size: 56,
                         ),
@@ -232,7 +271,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                       scanning 
                           ? 'Silakan letakkan jari Anda pada sensor biometrik untuk memverifikasi identitas...' 
                           : 'Sesi aman terbuka. Selamat membaca!',
-                      style: const TextStyle(color: Colors.black54, fontSize: 11, height: 1.4),
+                      style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 11, height: 1.4),
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -246,6 +285,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
 
   void _showBiometricSetupPrompt() {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     showDialog(
       context: context,
       builder: (context) {
@@ -253,21 +293,21 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           backgroundColor: Colors.transparent,
           child: GlassContainer(
             blur: 30,
-            opacity: 0.15,
+            opacity: isDark ? 0.22 : 0.15,
             borderRadius: 24,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.security_rounded, color: Color(0xFF6366F1), size: 42),
+                const Icon(LucideIcons.shieldAlert, color: Color(0xFF6366F1), size: 42),
                 const SizedBox(height: 14),
-                const Text(
+                Text(
                   'Biometrik Belum Aktif',
-                  style: TextStyle(color: Color(0xFF0F172A), fontSize: 15, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: isDark ? Colors.white : const Color(0xFF0F172A), fontSize: 15, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'Silakan daftarkan akun utama Anda terlebih dahulu, kemudian aktifkan fitur Biometrik di menu "Setelan" aplikasi agar bisa menggunakan login sidik jari cepat.',
-                  style: TextStyle(color: Colors.black54, fontSize: 11, height: 1.4),
+                  style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 11, height: 1.4),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 20),
@@ -292,6 +332,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: LiquidBackground(
@@ -302,181 +344,258 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             children: [
               const SizedBox(height: 35),
               
-              // App Brand / Logo
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(22),
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF6366F1), Color(0xFFEC4899)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF6366F1).withOpacity(0.3),
-                      blurRadius: 15,
-                      offset: const Offset(0, 8),
-                    )
-                  ]
-                ),
-                child: const Icon(Icons.auto_stories_rounded, color: Colors.white, size: 36),
+              // App Brand / Logo (Using the premium transparent logo)
+              Image.asset(
+                'lib/assets/images/splash_logo.png',
+                height: 120,
+                fit: BoxFit.contain,
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 12),
               
-              const Text(
+              Text(
                 'BERITAKU',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xFF0F172A),
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
                   letterSpacing: 2.0,
                 ),
               ),
               const SizedBox(height: 4),
-              const Text(
+              Text(
                 'Portal Berita AI Personal Anda',
-                style: TextStyle(color: Colors.black45, fontSize: 12, fontWeight: FontWeight.w500),
+                style: TextStyle(color: isDark ? Colors.white60 : Colors.black45, fontSize: 12, fontWeight: FontWeight.w500),
               ),
               const SizedBox(height: 24),
 
-              // Main Auth Glass Board
-              AnimatedSize(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-                child: GlassContainer(
+              if (_isBiometricOnlyLock) ...[
+                // Lock screen biometric-only view
+                GlassContainer(
                   blur: 30,
-                  opacity: 0.22,
+                  opacity: isDark ? 0.15 : 0.22,
                   borderRadius: 30,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      // View Switcher Tabs
-                      Row(
-                        children: [
-                          _buildTabItem(true, 'MASUK'),
-                          _buildTabItem(false, 'DAFTAR'),
-                        ],
+                      Text(
+                        'Selamat Datang Kembali,',
+                        style: TextStyle(
+                          color: isDark ? Colors.white70 : Colors.black54,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _welcomeName.isNotEmpty ? _welcomeName : 'Adrian Akbar',
+                        style: TextStyle(
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 35),
+                      
+                      // Pulsing biometrics scanner button
+                      ScaleTransition(
+                        scale: Tween<double>(begin: 0.94, end: 1.06).animate(
+                          CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+                        ),
+                        child: InkWell(
+                          onTap: _isLoading ? null : _handleBiometricLogin,
+                          borderRadius: BorderRadius.circular(45),
+                          child: Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: isDark ? Colors.white.withOpacity(0.08) : Colors.white.withOpacity(0.4),
+                              border: Border.all(color: const Color(0xFF6366F1).withOpacity(0.3), width: 1.5),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF6366F1).withOpacity(0.15),
+                                  blurRadius: 15,
+                                  spreadRadius: 2,
+                                )
+                              ]
+                            ),
+                            child: const Icon(
+                              LucideIcons.fingerprint,
+                              color: Color(0xFF6366F1),
+                              size: 50,
+                            ),
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 24),
-
-                      // Input Fields depending on view
-                      if (!_isLoginView) ...[
-                        // Full Name for Register
-                        _buildInputField(
-                          controller: _nameController,
-                          hint: 'Nama Lengkap',
-                          icon: Icons.person_outline_rounded,
+                      Text(
+                        'Sentuh sensor biometrik untuk membuka kunci aplikasi',
+                        style: TextStyle(
+                          color: isDark ? Colors.white60 : Colors.black45,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
                         ),
-                        const SizedBox(height: 12),
-                      ],
-
-                      // Email input
-                      _buildInputField(
-                        controller: _emailController,
-                        hint: 'Alamat Email',
-                        icon: Icons.alternate_email_rounded,
-                        keyboardType: TextInputType.emailAddress,
+                        textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 12),
-
-                      // Password input
-                      _buildInputField(
-                        controller: _passwordController,
-                        hint: 'Kata Sandi',
-                        icon: Icons.lock_outline_rounded,
-                        obscureText: _isObscure,
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _isObscure ? Icons.visibility_off_rounded : Icons.visibility_rounded,
-                            color: Colors.black38,
-                            size: 18,
+                      const SizedBox(height: 30),
+                      
+                      // Option to switch account or use password
+                      TextButton.icon(
+                        onPressed: _handleSwitchAccount,
+                        icon: const Icon(LucideIcons.logOut, size: 16, color: Color(0xFF6366F1)),
+                        label: const Text(
+                          'Masuk dengan Akun Lain / Kata Sandi',
+                          style: TextStyle(
+                            color: Color(0xFF6366F1),
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
                           ),
-                          onPressed: () => setState(() => _isObscure = !_isObscure),
-                        ),
-                      ),
-
-                      if (!_isLoginView) ...[
-                        const SizedBox(height: 12),
-                        // Confirm Password for Register
-                        _buildInputField(
-                          controller: _confirmPasswordController,
-                          hint: 'Konfirmasi Kata Sandi',
-                          icon: Icons.lock_clock_outlined,
-                          obscureText: _isObscure,
-                        ),
-                      ],
-
-                      const SizedBox(height: 24),
-
-                      // Submit Button
-                      SizedBox(
-                        height: 48,
-                        child: ElevatedButton(
-                          onPressed: _isLoading 
-                              ? null 
-                              : (_isLoginView ? _handleLogin : _handleRegister),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF6366F1),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            shadowColor: const Color(0xFF6366F1).withOpacity(0.4),
-                            elevation: 5,
-                          ),
-                          child: _isLoading 
-                              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                              : Text(
-                                  _isLoginView ? 'MASUK SEKARANG' : 'DAFTAR AKUN BARU',
-                                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 0.5),
-                                ),
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
-              const SizedBox(height: 24),
+              ] else ...[
+                // Main Auth Glass Board
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  child: GlassContainer(
+                    blur: 30,
+                    opacity: isDark ? 0.15 : 0.22,
+                    borderRadius: 30,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // View Switcher Tabs
+                        Row(
+                          children: [
+                            _buildTabItem(true, 'MASUK'),
+                            _buildTabItem(false, 'DAFTAR'),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
 
-              // Biometric Shortcut Panel for Login Mode
-              if (_isLoginView) ...[
-                const Text(
-                  'Atau masuk cepat dengan biometrik',
-                  style: TextStyle(color: Colors.black38, fontSize: 11, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 14),
-                
-                // Pulsing biometrics scanner button
-                ScaleTransition(
-                  scale: Tween<double>(begin: 0.94, end: 1.06).animate(
-                    CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+                        // Input Fields depending on view
+                        if (!_isLoginView) ...[
+                          // Full Name for Register
+                          _buildInputField(
+                            controller: _nameController,
+                            hint: 'Nama Lengkap',
+                            icon: LucideIcons.user,
+                            isDark: isDark,
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+
+                        // Email input
+                        _buildInputField(
+                          controller: _emailController,
+                          hint: 'Alamat Email',
+                          icon: LucideIcons.mail,
+                          keyboardType: TextInputType.emailAddress,
+                          isDark: isDark,
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Password input
+                        _buildInputField(
+                          controller: _passwordController,
+                          hint: 'Kata Sandi',
+                          icon: LucideIcons.lock,
+                          obscureText: _isObscure,
+                          isDark: isDark,
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _isObscure ? LucideIcons.eyeOff : LucideIcons.eye,
+                              color: isDark ? Colors.white38 : Colors.black38,
+                              size: 18,
+                            ),
+                            onPressed: () => setState(() => _isObscure = !_isObscure),
+                          ),
+                        ),
+
+                        if (!_isLoginView) ...[
+                          const SizedBox(height: 12),
+                          // Confirm Password for Register
+                          _buildInputField(
+                            controller: _confirmPasswordController,
+                            hint: 'Konfirmasi Kata Sandi',
+                            icon: LucideIcons.lock,
+                            obscureText: _isObscure,
+                            isDark: isDark,
+                          ),
+                        ],
+
+                        const SizedBox(height: 24),
+
+                        // Submit Button
+                        SizedBox(
+                          height: 48,
+                          child: ElevatedButton(
+                            onPressed: _isLoading 
+                                ? null 
+                                : (_isLoginView ? _handleLogin : _handleRegister),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF6366F1),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              shadowColor: const Color(0xFF6366F1).withOpacity(0.4),
+                              elevation: 5,
+                            ),
+                            child: _isLoading 
+                                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                : Text(
+                                    _isLoginView ? 'MASUK SEKARANG' : 'DAFTAR AKUN BARU',
+                                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 0.5),
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  child: InkWell(
-                    onTap: _isLoading ? null : _handleBiometricLogin,
-                    borderRadius: BorderRadius.circular(40),
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withOpacity(0.4),
-                        border: Border.all(color: const Color(0xFF6366F1).withOpacity(0.3), width: 1.5),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF6366F1).withOpacity(0.15),
-                            blurRadius: 15,
-                            spreadRadius: 2,
-                          )
-                        ]
-                      ),
-                      child: const Icon(
-                        Icons.fingerprint_rounded,
-                        color: Color(0xFF6366F1),
-                        size: 40,
+                ),
+                const SizedBox(height: 24),
+
+                // Biometric Shortcut Panel for Login Mode
+                if (_isLoginView) ...[
+                  Text(
+                    'Atau masuk cepat dengan biometrik',
+                    style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 14),
+                  
+                  // Pulsing biometrics scanner button
+                  ScaleTransition(
+                    scale: Tween<double>(begin: 0.94, end: 1.06).animate(
+                      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+                    ),
+                    child: InkWell(
+                      onTap: _isLoading ? null : _handleBiometricLogin,
+                      borderRadius: BorderRadius.circular(40),
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isDark ? Colors.white.withOpacity(0.08) : Colors.white.withOpacity(0.4),
+                          border: Border.all(color: const Color(0xFF6366F1).withOpacity(0.3), width: 1.5),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF6366F1).withOpacity(0.15),
+                              blurRadius: 15,
+                              spreadRadius: 2,
+                            )
+                          ]
+                        ),
+                        child: const Icon(
+                          LucideIcons.fingerprint,
+                          color: Color(0xFF6366F1),
+                          size: 40,
+                        ),
                       ),
                     ),
                   ),
-                )
+                ]
               ]
             ],
           ),
@@ -485,8 +604,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     );
   }
 
+
   Widget _buildTabItem(bool isLoginTab, String label) {
     final bool active = _isLoginView == isLoginTab;
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     return Expanded(
       child: InkWell(
         onTap: () => setState(() => _isLoginView = isLoginTab),
@@ -496,7 +617,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             Text(
               label,
               style: TextStyle(
-                color: active ? const Color(0xFF0F172A) : Colors.black38,
+                color: active 
+                    ? (isDark ? Colors.white : const Color(0xFF0F172A)) 
+                    : (isDark ? Colors.white38 : Colors.black38),
                 fontSize: 13,
                 fontWeight: active ? FontWeight.w900 : FontWeight.bold,
                 letterSpacing: 0.5,
@@ -532,22 +655,30 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     bool obscureText = false,
     Widget? suffixIcon,
     TextInputType? keyboardType,
+    bool isDark = false,
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.03),
+        color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.5), width: 1.2),
+        border: Border.all(
+          color: isDark ? Colors.white.withOpacity(0.15) : Colors.white.withOpacity(0.5),
+          width: 1.2,
+        ),
       ),
       child: TextField(
         controller: controller,
         obscureText: obscureText,
         keyboardType: keyboardType,
-        style: const TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.bold),
+        style: TextStyle(
+          color: isDark ? Colors.white : const Color(0xFF0F172A),
+          fontSize: 13,
+          fontWeight: FontWeight.bold,
+        ),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: const TextStyle(color: Colors.black38, fontSize: 12),
-          prefixIcon: Icon(icon, color: Colors.black45, size: 18),
+          hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 12),
+          prefixIcon: Icon(icon, color: isDark ? Colors.white54 : Colors.black45, size: 18),
           suffixIcon: suffixIcon,
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

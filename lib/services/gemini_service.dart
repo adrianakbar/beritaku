@@ -10,7 +10,7 @@ class GeminiService {
   Future<bool> testConnection(String apiKey) async {
     if (apiKey.trim().isEmpty) return false;
     
-    final url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey';
+    final url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey';
     
     try {
       final response = await http.post(
@@ -48,7 +48,7 @@ class GeminiService {
       throw Exception('API Key Gemini belum dikonfigurasi. Silakan masuk ke halaman Pengaturan.');
     }
 
-    final url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey';
+    final url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey';
 
     // Prepare robust prompt for structured JSON output
     final String prompt = '''

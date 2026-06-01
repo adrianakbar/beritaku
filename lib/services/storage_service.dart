@@ -24,6 +24,8 @@ class StorageService {
   static const String _keyFeedsSeeded = 'feed_sources_seeded_sqlite'; // Check if default feeds are seeded in SQLite
   static const String _keySelectedTitleFont = 'selected_title_font';
   static const String _keySelectedBodyFont = 'selected_body_font';
+  static const String _keyThemeMode = 'theme_mode';
+
 
   Future<void> init() async {
     if (_isInitialized) return;
@@ -181,6 +183,11 @@ class StorageService {
 
   String getSelectedBodyFont() => _prefs.getString(_keySelectedBodyFont) ?? 'Lora';
   Future<void> setSelectedBodyFont(String fontName) async => await _prefs.setString(_keySelectedBodyFont, fontName);
+
+  // Theme Settings
+  String getThemeMode() => _prefs.getString(_keyThemeMode) ?? 'system';
+  Future<void> setThemeMode(String mode) async => await _prefs.setString(_keyThemeMode, mode);
+
 
   // --- SQLITE BOOKMARKS & OFFLINE ARTICLES PORTING ---
 

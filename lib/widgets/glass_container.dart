@@ -33,6 +33,8 @@ class GlassContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       width: width,
       height: height,
@@ -40,20 +42,21 @@ class GlassContainer extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(borderRadius),
         boxShadow: shadows ?? [
-          // Soft ambient grey shadow for 3D depth on light backgrounds
+          // Soft ambient shadow for depth
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withOpacity(isDark ? 0.35 : 0.04),
             blurRadius: 18,
             spreadRadius: 2,
             offset: const Offset(0, 8),
           ),
-          // Subtle white ambient glow
-          BoxShadow(
-            color: Colors.white.withOpacity(0.5),
-            blurRadius: 10,
-            spreadRadius: -2,
-            offset: const Offset(0, -4),
-          ),
+          if (!isDark)
+            // Subtle white ambient glow for light backgrounds
+            BoxShadow(
+              color: Colors.white.withOpacity(0.5),
+              blurRadius: 10,
+              spreadRadius: -2,
+              offset: const Offset(0, -4),
+            ),
         ],
       ),
       child: ClipRRect(
@@ -64,18 +67,18 @@ class GlassContainer extends StatelessWidget {
             padding: padding,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(borderRadius),
-              color: glassColor ?? Colors.white.withOpacity(opacity),
+              color: glassColor ?? (isDark ? const Color(0xFF1E293B).withOpacity(0.3) : Colors.white.withOpacity(opacity)),
               border: customBorder ?? Border.all(
-                color: Colors.white.withOpacity(borderOpacity),
+                color: isDark ? Colors.white.withOpacity(0.08) : Colors.white.withOpacity(borderOpacity),
                 width: 1.5, // Thicker crystalline borders
               ),
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  Colors.white.withOpacity((opacity + 0.15).clamp(0.0, 1.0)),
-                  Colors.white.withOpacity(opacity.clamp(0.0, 1.0)),
-                  Colors.white.withOpacity((opacity - 0.12).clamp(0.0, 1.0)),
+                  (isDark ? const Color(0xFF334155) : Colors.white).withOpacity((opacity + 0.15).clamp(0.0, 1.0)),
+                  (isDark ? const Color(0xFF1E293B) : Colors.white).withOpacity(opacity.clamp(0.0, 1.0)),
+                  (isDark ? const Color(0xFF0F172A) : Colors.white).withOpacity((opacity - 0.12).clamp(0.0, 1.0)),
                 ],
                 stops: const [0.0, 0.5, 1.0],
               ),

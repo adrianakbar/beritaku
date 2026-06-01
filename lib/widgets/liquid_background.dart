@@ -31,9 +31,10 @@ class _LiquidBackgroundState extends State<LiquidBackground> with SingleTickerPr
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA), // Pristine light pearlescent background for Light Mode
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
           // Ambient organic pastel liquid blobs
@@ -54,7 +55,7 @@ class _LiquidBackgroundState extends State<LiquidBackground> with SingleTickerPr
 
               return Stack(
                 children: [
-                  // Blob 1: Soft Lilac Pastel
+                  // Blob 1: Lilac Pastel (Light) / Violet (Dark)
                   Positioned(
                     top: size.height * 0.15 + y1,
                     left: size.width * 0.1 + x1,
@@ -65,15 +66,15 @@ class _LiquidBackgroundState extends State<LiquidBackground> with SingleTickerPr
                         shape: BoxShape.circle,
                         gradient: RadialGradient(
                           colors: [
-                            const Color(0xFFD8B4FE).withOpacity(0.4), // Soft Lilac
-                            const Color(0xFFD8B4FE).withOpacity(0.0),
+                            (isDark ? const Color(0xFF8B5CF6) : const Color(0xFFD8B4FE)).withOpacity(isDark ? 0.22 : 0.4),
+                            (isDark ? const Color(0xFF8B5CF6) : const Color(0xFFD8B4FE)).withOpacity(0.0),
                           ],
                         ),
                       ),
                     ),
                   ),
                   
-                  // Blob 2: Soft Creamy Peach Pastel
+                  // Blob 2: Creamy Peach (Light) / Neon Pink (Dark)
                   Positioned(
                     bottom: size.height * 0.2 + y2,
                     right: size.width * 0.05 + x2,
@@ -84,15 +85,15 @@ class _LiquidBackgroundState extends State<LiquidBackground> with SingleTickerPr
                         shape: BoxShape.circle,
                         gradient: RadialGradient(
                           colors: [
-                            const Color(0xFFFDBA74).withOpacity(0.4), // Soft Peach
-                            const Color(0xFFFDBA74).withOpacity(0.0),
+                            (isDark ? const Color(0xFFEC4899) : const Color(0xFFFDBA74)).withOpacity(isDark ? 0.15 : 0.4),
+                            (isDark ? const Color(0xFFEC4899) : const Color(0xFFFDBA74)).withOpacity(0.0),
                           ],
                         ),
                       ),
                     ),
                   ),
 
-                  // Blob 3: Soft Sky Blue / Mint Pastel
+                  // Blob 3: Sky Blue (Light) / Cyan (Dark)
                   Positioned(
                     top: size.height * 0.5 + y3,
                     left: size.width * 0.3 + x3,
@@ -103,8 +104,8 @@ class _LiquidBackgroundState extends State<LiquidBackground> with SingleTickerPr
                         shape: BoxShape.circle,
                         gradient: RadialGradient(
                           colors: [
-                            const Color(0xFFBAE6FD).withOpacity(0.45), // Soft Sky Blue
-                            const Color(0xFFBAE6FD).withOpacity(0.0),
+                            (isDark ? const Color(0xFF06B6D4) : const Color(0xFFBAE6FD)).withOpacity(isDark ? 0.18 : 0.45),
+                            (isDark ? const Color(0xFF06B6D4) : const Color(0xFFBAE6FD)).withOpacity(0.0),
                           ],
                         ),
                       ),

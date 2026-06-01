@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'glass_container.dart';
 
 class GlassShimmer extends StatefulWidget {
@@ -102,28 +103,28 @@ class SentimentBadge extends StatelessWidget {
 
     // Map Category to Theme
     final String cat = category!.trim();
-    IconData icon = Icons.newspaper_rounded;
+    IconData icon = LucideIcons.newspaper;
     Color glowColor = const Color(0xFF94A3B8); // Gray
     String label = cat;
     
     if (cat == 'Politik Memanas') {
-      icon = Icons.local_fire_department_rounded;
+      icon = LucideIcons.flame;
       glowColor = const Color(0xFFEF4444); // Red
       label = 'Politik Memanas';
     } else if (cat == 'Ekonomi Makro') {
-      icon = Icons.trending_up_rounded;
+      icon = LucideIcons.trendingUp;
       glowColor = const Color(0xFF3B82F6); // Blue
       label = 'Ekonomi Makro';
     } else if (cat == 'Sains & Teknologi') {
-      icon = Icons.bolt_rounded;
+      icon = LucideIcons.zap;
       glowColor = const Color(0xFF10B981); // Green/Emerald
       label = 'Sains & Tekno';
     } else if (cat == 'Gosip Ringan') {
-      icon = Icons.chat_bubble_outline_rounded;
+      icon = LucideIcons.messageSquare;
       glowColor = const Color(0xFFF59E0B); // Amber
       label = 'Gosip Ringan';
     } else if (cat == 'Berita Umum') {
-      icon = Icons.newspaper_rounded;
+      icon = LucideIcons.newspaper;
       glowColor = const Color(0xFF06B6D4); // Cyan
       label = 'Berita Umum';
     }
@@ -176,13 +177,13 @@ class SentimentBadge extends StatelessWidget {
           Text(
             label.toUpperCase(),
             style: TextStyle(
-              color: Colors.white,
+              color: Theme.of(context).brightness == Brightness.dark ? Colors.white : glowColor,
               fontSize: 11,
               fontWeight: FontWeight.w800,
               letterSpacing: 0.8,
               shadows: [
                 Shadow(
-                  color: glowColor.withOpacity(0.8),
+                  color: glowColor.withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.8 : 0.2),
                   blurRadius: 6,
                 )
               ]

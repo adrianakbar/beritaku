@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -19,6 +20,11 @@ class ArticleDetailScreen extends StatefulWidget {
 }
 
 class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
+  bool get _isDark => Theme.of(context).brightness == Brightness.dark;
+  Color get _textColor => _isDark ? Colors.white : const Color(0xFF0F172A);
+  Color get _subtitleColor => _isDark ? Colors.white70 : const Color(0xFF4B5563);
+  Color get _captionColor => _isDark ? Colors.white30 : const Color(0xFF9CA3AF);
+
   final StorageService _storage = StorageService();
   final GeminiService _gemini = GeminiService();
   final TtsService _tts = TtsService();
@@ -119,21 +125,21 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
           backgroundColor: Colors.transparent,
           child: GlassContainer(
             blur: 30,
-            opacity: 0.2,
+            opacity: _isDark ? 0.25 : 0.2,
             borderRadius: 24,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 42),
+                const Icon(LucideIcons.alertCircle, color: Colors.redAccent, size: 42),
                 const SizedBox(height: 14),
-                const Text(
+                Text(
                   'Gagal Memproses AI',
-                  style: TextStyle(color: Color(0xFF0F172A), fontSize: 16, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: _textColor, fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 10),
                 Text(
                   msg,
-                  style: const TextStyle(color: Colors.black87, fontSize: 12, height: 1.4),
+                  style: TextStyle(color: _subtitleColor, fontSize: 12, height: 1.4),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 20),
@@ -169,12 +175,12 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
           backgroundColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF0F172A)),
+            icon: Icon(LucideIcons.chevronLeft, color: _textColor),
             onPressed: () => Navigator.of(context).pop(),
           ),
           actions: [
             IconButton(
-              icon: const Icon(Icons.format_size_rounded, color: Color(0xFF0F172A)),
+              icon: Icon(LucideIcons.type, color: _textColor),
               onPressed: () {
                 setState(() {
                   if (_fontSize == 14.0) _fontSize = 17.0;
@@ -185,8 +191,8 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
             ),
             IconButton(
               icon: Icon(
-                _isBookmarked ? Icons.bookmark_added_rounded : Icons.bookmark_add_outlined,
-                color: _isBookmarked ? const Color(0xFF6366F1) : const Color(0xFF0F172A),
+                _isBookmarked ? LucideIcons.checkSquare : LucideIcons.bookmark,
+                color: _isBookmarked ? const Color(0xFF6366F1) : _textColor,
               ),
               onPressed: _toggleOfflineSave,
             ),
@@ -223,7 +229,7 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
                       ),
                       Text(
                         formattedDate,
-                        style: const TextStyle(color: Colors.black45, fontSize: 10),
+                        style: TextStyle(color: _subtitleColor, fontSize: 10),
                       ),
                     ],
                   ),
@@ -234,7 +240,7 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
                     _article.title,
                     style: GoogleFonts.getFont(
                       _titleFont,
-                      color: const Color(0xFF0F172A),
+                      color: _textColor,
                       fontSize: 22, // Slightly larger for dynamic editorial presence
                       fontWeight: FontWeight.w900,
                       height: 1.35,
@@ -270,7 +276,7 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
                     _article.content,
                     style: GoogleFonts.getFont(
                       _bodyFont,
-                      color: const Color(0xFF1E293B), // Premium high contrast dark slate reading color
+                      color: _textColor, // Premium dynamic high contrast color
                       fontSize: _fontSize,
                       height: 1.75, // Generous line spacing for comfortable reading
                       letterSpacing: 0.1,
@@ -284,8 +290,8 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
                     height: 48,
                     child: OutlinedButton.icon(
                       onPressed: _launchUrl,
-                      icon: const Icon(Icons.open_in_browser_rounded, size: 18, color: Color(0xFF4F46E5)),
-                      label: const Text('Buka Tautan Asli Berita', style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 12)),
+                      icon: const Icon(LucideIcons.externalLink, size: 18, color: Color(0xFF4F46E5)),
+                      label: Text('Buka Tautan Asli Berita', style: TextStyle(color: _textColor, fontWeight: FontWeight.bold, fontSize: 12)),
                       style: OutlinedButton.styleFrom(
                         side: BorderSide(color: const Color(0xFF6366F1).withOpacity(0.35)),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -327,7 +333,7 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
                 const SizedBox(width: 10),
                 Text(
                   'AI Sedang Membaca & Meringkas...',
-                  style: TextStyle(color: const Color(0xFF0F172A).withOpacity(0.9), fontSize: 12, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: _textColor.withOpacity(0.9), fontSize: 12, fontWeight: FontWeight.bold),
                 )
               ],
             ),
@@ -353,25 +359,25 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
           customBorder: Border.all(color: const Color(0xFF6366F1).withOpacity(0.2), width: 1.0),
           child: Row(
             children: [
-              const Icon(Icons.auto_awesome_rounded, color: Color(0xFF4F46E5), size: 28),
+              const Icon(LucideIcons.sparkles, color: Color(0xFF4F46E5), size: 28),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
+                  children: [
                     Text(
                       'Butuh Ringkasan Otomatis?',
-                      style: TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.bold),
+                      style: TextStyle(color: _textColor, fontSize: 13, fontWeight: FontWeight.bold),
                     ),
-                    SizedBox(height: 2),
+                    const SizedBox(height: 2),
                     Text(
                       'Ketuk untuk membaca 3 poin inti & sentimen berita menggunakan Gemini AI.',
-                      style: TextStyle(color: Colors.black54, fontSize: 10, height: 1.3),
+                      style: TextStyle(color: _subtitleColor, fontSize: 10, height: 1.3),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.arrow_forward_ios_rounded, color: Colors.black38, size: 14),
+              Icon(LucideIcons.chevronRight, color: _captionColor, size: 14),
             ],
           ),
         ),
@@ -390,13 +396,13 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Row(
-                children: const [
-                  Icon(Icons.auto_awesome_rounded, color: Color(0xFF4F46E5), size: 18),
-                  SizedBox(width: 8),
+                children: [
+                  const Icon(LucideIcons.sparkles, color: Color(0xFF4F46E5), size: 18),
+                  const SizedBox(width: 8),
                   Text(
                     'GEMINI AI INSIGHTS',
                     style: TextStyle(
-                      color: Color(0xFF0F172A),
+                      color: _textColor,
                       fontSize: 12,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 0.8,
@@ -412,12 +418,12 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
             const SizedBox(height: 8),
             Text(
               _article.sentimentDescription!,
-              style: const TextStyle(color: Colors.black87, fontSize: 11, fontStyle: FontStyle.italic),
+              style: TextStyle(color: _subtitleColor, fontSize: 11, fontStyle: FontStyle.italic),
             ),
           ],
 
           const SizedBox(height: 12),
-          Divider(color: Colors.black.withOpacity(0.06)),
+          Divider(color: _isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.06)),
           const SizedBox(height: 6),
 
           Column(
@@ -427,13 +433,13 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.blur_on_rounded, color: Color(0xFF4F46E5), size: 16),
+                    const Icon(LucideIcons.sparkle, color: Color(0xFF4F46E5), size: 16),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         bullet,
-                        style: const TextStyle(
-                          color: Color(0xFF1E293B),
+                        style: TextStyle(
+                          color: _textColor,
                           fontSize: 12,
                           height: 1.4,
                           fontWeight: FontWeight.bold,
@@ -463,10 +469,10 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
         children: [
           CircleAvatar(
             radius: 20,
-            backgroundColor: (isActiveSpeaker ? const Color(0xFF6366F1) : Colors.black).withOpacity(0.04),
+            backgroundColor: (isActiveSpeaker ? const Color(0xFF6366F1) : (_isDark ? Colors.white : Colors.black)).withOpacity(0.04),
             child: Icon(
-              isActiveSpeaker ? Icons.volume_up_rounded : Icons.volume_mute_rounded,
-              color: isActiveSpeaker ? const Color(0xFF4F46E5) : Colors.black54,
+              isActiveSpeaker ? LucideIcons.volume2 : LucideIcons.volumeX,
+              color: isActiveSpeaker ? const Color(0xFF4F46E5) : _subtitleColor,
               size: 20,
             ),
           ),
@@ -484,14 +490,14 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
                 const SizedBox(height: 2),
                 Text(
                   isActiveSpeaker ? 'Sedang dibacakan...' : 'Dengarkan Berita Ini',
-                  style: const TextStyle(color: Color(0xFF0F172A), fontSize: 11, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: _textColor, fontSize: 11, fontWeight: FontWeight.bold),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
                 Text(
                   'Kecepatan Suara: ${curSpeed.toStringAsFixed(2)}x',
-                  style: const TextStyle(color: Colors.black45, fontSize: 8.5),
+                  style: TextStyle(color: _captionColor, fontSize: 8.5),
                 )
               ],
             ),
@@ -500,8 +506,8 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
           IconButton(
             icon: Icon(
               isActiveSpeaker && _tts.isPlaying 
-                  ? Icons.pause_circle_rounded 
-                  : Icons.play_circle_rounded,
+                  ? LucideIcons.pauseCircle 
+                  : LucideIcons.playCircle,
               color: const Color(0xFF4F46E5),
               size: 38,
             ),
@@ -518,7 +524,7 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
 
           if (isActiveSpeaker)
             IconButton(
-              icon: const Icon(Icons.stop_circle_rounded, color: Colors.redAccent, size: 30),
+              icon: const Icon(LucideIcons.stopCircle, color: Colors.redAccent, size: 30),
               onPressed: () {
                 _tts.stop();
               },

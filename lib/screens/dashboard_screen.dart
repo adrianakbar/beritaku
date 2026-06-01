@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:intl/intl.dart';
 import '../services/storage_service.dart';
 import '../services/rss_service.dart';
@@ -19,6 +20,11 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  bool get _isDark => Theme.of(context).brightness == Brightness.dark;
+  Color get _textColor => _isDark ? Colors.white : const Color(0xFF0F172B);
+  Color get _subtitleColor => _isDark ? Colors.white70 : const Color(0xFF4B5563);
+  Color get _captionColor => _isDark ? Colors.white30 : const Color(0xFF9CA3AF);
+
   final StorageService _storage = StorageService();
   final RssService _rss = RssService();
   final TtsService _tts = TtsService();
@@ -177,11 +183,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void _showToast(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(msg, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white)),
+        content: Text(msg, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white)),
         duration: const Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.only(bottom: 100, left: 40, right: 40),
+        margin: EdgeInsets.only(bottom: 100, left: 40, right: 40),
       ),
     );
   }
@@ -192,7 +198,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final bool isGeminiConfigured = _storage.getGeminiApiKey().isNotEmpty;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
+      padding: EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -206,21 +212,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   children: [
                     Text(
                       _getGreeting(),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w900,
-                        color: Color(0xFF0F172A), // Dark slate black
+                        color: _textColor, // Dark slate black
                         letterSpacing: 0.2,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 2),
-                    const Text(
+                    SizedBox(height: 2),
+                    Text(
                       'Umpan Ringkasan AI Terintegrasi',
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.black54, // Soft grey slate
+                        color: _subtitleColor, // Soft grey slate
                         fontWeight: FontWeight.w500,
                       ),
                       maxLines: 1,
@@ -232,7 +238,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               
               IconButton(
                 icon: Icon(
-                  _tts.isPlaying ? Icons.pause_circle_filled_rounded : Icons.play_circle_fill_rounded,
+                  _tts.isPlaying ? LucideIcons.pauseCircle : LucideIcons.playCircle,
                   color: const Color(0xFF6366F1),
                   size: 38,
                 ),
@@ -248,12 +254,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
 
           // Gemini warning banner
           if (!isGeminiConfigured)
             Padding(
-              padding: const EdgeInsets.only(bottom: 16.0),
+              padding: EdgeInsets.only(bottom: 16.0),
               child: InkWell(
                 onTap: () {
                   _showToast('Silakan buka tab "Setelan" untuk mengisi API Key Gemini.');
@@ -262,15 +268,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   glassColor: Colors.amber.withOpacity(0.08),
                   customBorder: Border.all(color: Colors.amber.withOpacity(0.4), width: 1.0),
                   borderRadius: 16,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   child: Row(
                     children: [
-                      Icon(Icons.info_outline_rounded, color: Colors.amber.shade900, size: 18),
-                      const SizedBox(width: 10),
+                      Icon(LucideIcons.alertTriangle, color: Colors.amber.shade900, size: 18),
+                      SizedBox(width: 10),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
+                          children: [
                             Text(
                               'Ringkasan AI Belum Aktif',
                               style: TextStyle(color: Colors.amber, fontSize: 11, fontWeight: FontWeight.bold),
@@ -278,12 +284,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             SizedBox(height: 2),
                             Text(
                               'Masukkan API Key Gemini di tab Setelan untuk menyalakan Ringkasan AI.',
-                              style: TextStyle(color: Colors.black54, fontSize: 9, height: 1.3),
+                              style: TextStyle(color: _subtitleColor, fontSize: 9, height: 1.3),
                             ),
                           ],
                         ),
                       ),
-                      const Icon(Icons.arrow_forward_ios_rounded, color: Colors.amber, size: 12),
+                      Icon(LucideIcons.chevronRight, color: Colors.amber, size: 12),
                     ],
                   ),
                 ),
@@ -293,14 +299,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
           // Search Bar
           GlassContainer(
             borderRadius: 16.0,
-            padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 0.0),
+            padding: EdgeInsets.symmetric(horizontal: 14.0, vertical: 0.0),
             opacity: 0.16, // Darker milky opacity for input contrast
             child: TextField(
-              style: const TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.bold),
+              style: TextStyle(color: _textColor, fontSize: 13, fontWeight: FontWeight.bold),
               decoration: InputDecoration(
                 hintText: 'Cari berita hari ini...',
-                hintStyle: TextStyle(color: Colors.black38, fontSize: 13),
-                icon: Icon(Icons.search_rounded, color: Colors.black45, size: 20),
+                hintStyle: TextStyle(color: _captionColor, fontSize: 13),
+                icon: Icon(LucideIcons.search, color: _captionColor, size: 20),
                 border: InputBorder.none,
               ),
               onChanged: (value) {
@@ -310,7 +316,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               },
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
 
           // Categories tabs
           SizedBox(
@@ -323,7 +329,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 final cat = _categories[index];
                 final bool isSelected = _selectedCategoryTab == cat;
                 return Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
+                  padding: EdgeInsets.only(right: 8.0),
                   child: ChoiceChip(
                     label: Text(cat),
                     selected: isSelected,
@@ -337,12 +343,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     selectedColor: const Color(0xFF6366F1).withOpacity(0.2),
                     backgroundColor: Colors.white.withOpacity(0.4),
                     labelStyle: TextStyle(
-                      color: isSelected ? const Color(0xFF6366F1) : Colors.black54,
+                      color: isSelected ? const Color(0xFF6366F1) : _subtitleColor,
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                       fontSize: 12,
                     ),
                     side: BorderSide(
-                      color: isSelected ? const Color(0xFF6366F1).withOpacity(0.5) : Colors.black.withOpacity(0.04),
+                      color: isSelected ? const Color(0xFF6366F1).withOpacity(0.5) : _textColor.withOpacity(0.04),
                       width: 1,
                     ),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -351,13 +357,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
               },
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
 
           // Podcast bar
           if (_tts.isPlaying)
             Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              margin: EdgeInsets.only(bottom: 12),
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: const Color(0xFF6366F1).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(10),
@@ -365,18 +371,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.radio_rounded, color: Color(0xFF6366F1), size: 14),
-                  const SizedBox(width: 8),
+                  Icon(LucideIcons.radio, color: Color(0xFF6366F1), size: 14),
+                  SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'SEDANG BERPUTAR: "${_tts.currentArticle?.title ?? ''}"',
-                      style: const TextStyle(color: Color(0xFF0F172A), fontSize: 9, fontWeight: FontWeight.bold),
+                      style: TextStyle(color: _textColor, fontSize: 9, fontWeight: FontWeight.bold),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  const SizedBox(
+                  SizedBox(width: 8),
+                  SizedBox(
                     width: 14,
                     height: 10,
                     child: _VisualizerAnimation(),
@@ -397,7 +403,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ? _buildEmptyState()
                       : ListView.builder(
                           physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-                          padding: const EdgeInsets.only(bottom: 40),
+                          padding: EdgeInsets.only(bottom: 40),
                           itemCount: filtered.length,
                           itemBuilder: (context, index) {
                             final article = filtered[index];
@@ -417,11 +423,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       itemCount: 4,
       itemBuilder: (_, __) {
         return Padding(
-          padding: const EdgeInsets.only(bottom: 16.0),
+          padding: EdgeInsets.only(bottom: 16.0),
           child: GlassContainer(
             borderRadius: 20,
             opacity: 0.15,
-            padding: const EdgeInsets.all(12),
+            padding: EdgeInsets.all(12),
             child: Row(
               children: [
                 Expanded(
@@ -429,13 +435,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const GlassShimmer(width: 120, height: 12, borderRadius: 6),
-                      const SizedBox(height: 10),
+                      SizedBox(height: 10),
                       const GlassShimmer(width: double.infinity, height: 16, borderRadius: 8),
-                      const SizedBox(height: 6),
+                      SizedBox(height: 6),
                       const GlassShimmer(width: 200, height: 16, borderRadius: 8),
-                      const SizedBox(height: 14),
+                      SizedBox(height: 14),
                       Row(
-                        children: const [
+                        children: [
                           GlassShimmer(width: 60, height: 10, borderRadius: 5),
                           SizedBox(width: 10),
                           GlassShimmer(width: 80, height: 10, borderRadius: 5),
@@ -444,7 +450,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 const GlassShimmer(width: 90, height: 90, borderRadius: 14),
               ],
             ),
@@ -460,18 +466,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.feed_outlined, size: 60, color: Colors.black26),
-            const SizedBox(height: 14),
-            const Text(
+            Icon(LucideIcons.newspaper, size: 60, color: Colors.black26),
+            SizedBox(height: 14),
+            Text(
               'Tidak ada berita ditemukan',
-              style: TextStyle(color: Color(0xFF0F172A), fontSize: 15, fontWeight: FontWeight.bold),
+              style: TextStyle(color: _textColor, fontSize: 15, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 6),
-            const Padding(
+            SizedBox(height: 6),
+            Padding(
               padding: EdgeInsets.symmetric(horizontal: 40.0),
               child: Text(
                 'Umpan kustom kosong. Tarik ke bawah untuk refresh atau matikan filter kata kunci kustom Anda di Setelan.',
-                style: TextStyle(color: Colors.black45, fontSize: 11, height: 1.4),
+                style: TextStyle(color: _captionColor, fontSize: 11, height: 1.4),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -485,7 +491,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final bool bookmarked = article.isBookmarked;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14.0),
+      padding: EdgeInsets.only(bottom: 14.0),
       child: InkWell(
         onTap: () {
           Navigator.push(
@@ -501,7 +507,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: GlassContainer(
           borderRadius: 20,
           opacity: 0.2, // milky glass opacity card
-          padding: const EdgeInsets.all(12),
+          padding: EdgeInsets.all(12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -513,14 +519,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
                             color: const Color(0xFF6366F1).withOpacity(0.1),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
                             article.sourceName.toUpperCase(),
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: Color(0xFF4F46E5),
                               fontSize: 9,
                               fontWeight: FontWeight.w900,
@@ -528,18 +534,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 6),
+                        SizedBox(width: 6),
                         if (article.sentimentCategory != null)
                           SentimentBadge(category: article.sentimentCategory, compact: true),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     
                     // Title
                     Text(
                       article.title,
-                      style: const TextStyle(
-                        color: Color(0xFF0F172A),
+                      style: TextStyle(
+                        color: _textColor,
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
                         height: 1.4,
@@ -547,38 +553,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 6),
+                    SizedBox(height: 6),
                     
                     // Description
                     Text(
                       article.description,
-                      style: const TextStyle(
-                        color: Colors.black54,
+                      style: TextStyle(
+                        color: _subtitleColor,
                         fontSize: 11,
                         height: 1.3,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12),
                     
                     // Date & Actions
                     Row(
                       children: [
-                        const Icon(Icons.access_time_rounded, color: Colors.black38, size: 12),
-                        const SizedBox(width: 4),
+                        Icon(LucideIcons.clock, color: _captionColor, size: 12),
+                        SizedBox(width: 4),
                         Text(
                           _formatDate(article.publishedAt),
-                          style: const TextStyle(color: Colors.black38, fontSize: 10),
+                          style: TextStyle(color: _captionColor, fontSize: 10),
                         ),
                         const Spacer(),
                         InkWell(
                           onTap: () => _toggleBookmark(article),
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                            padding: EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
                             child: Icon(
-                              bookmarked ? Icons.bookmark_added_rounded : Icons.bookmark_border_rounded,
-                              color: bookmarked ? const Color(0xFF6366F1) : Colors.black38,
+                              bookmarked ? LucideIcons.checkSquare : LucideIcons.bookmark,
+                              color: bookmarked ? const Color(0xFF6366F1) : _captionColor,
                               size: 18,
                             ),
                           ),
@@ -590,17 +596,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
 
               if (article.imageUrl != null) ...[
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(14),
                   child: Container(
                     width: 86,
                     height: 86,
-                    color: Colors.black.withOpacity(0.02),
+                    color: _textColor.withOpacity(0.02),
                     child: Image.network(
                       article.imageUrl!,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_rounded, color: Colors.black12, size: 24),
+                      errorBuilder: (_, __, ___) => Icon(LucideIcons.image, color: Colors.black12, size: 24),
                     ),
                   ),
                 )
